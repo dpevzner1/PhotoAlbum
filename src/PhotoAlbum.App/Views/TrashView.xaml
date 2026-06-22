@@ -1,0 +1,84 @@
+<Page x:Class="PhotoAlbum.App.Views.TrashView"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.modernwpf.com/2019"
+      Title="Trash"
+      Background="{DynamicResource ContentBackground}">
+
+    <Page.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </Page.Resources>
+
+    <DockPanel>
+        <!-- Toolbar -->
+        <Border DockPanel.Dock="Top" Padding="16,12" Background="{DynamicResource CardBackground}">
+            <DockPanel>
+                <Button DockPanel.Dock="Right"
+                        x:Name="EmptyTrashBtn"
+                        Click="EmptyTrashBtn_Click"
+                        Style="{StaticResource DangerPillButtonStyle}"
+                        Margin="8,0,0,0"
+                        AutomationProperties.Name="Empty trash — permanently delete all">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Delete" Margin="0,0,6,0"/>
+                        <TextBlock Text="Empty Trash"/>
+                    </StackPanel>
+                </Button>
+                <TextBlock x:Name="CountText" VerticalAlignment="Center"
+                           Style="{StaticResource SubtitleTextStyle}"/>
+            </DockPanel>
+        </Border>
+
+        <!-- Status bar -->
+        <Border DockPanel.Dock="Bottom" Padding="16,4" Background="{DynamicResource CardBackground}">
+            <TextBlock x:Name="StatusText" Style="{StaticResource CaptionTextStyle}"
+                       Text="Items in trash are not counted in your library."/>
+        </Border>
+
+        <!-- List of trashed items -->
+        <Grid>
+            <ListView x:Name="TrashList"
+                      Margin="0"
+                      SelectionMode="Extended"
+                      AutomationProperties.Name="Trashed photos">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Header="Name" Width="280"
+                                        DisplayMemberBinding="{Binding OriginalName}"/>
+                        <GridViewColumn Header="Deleted" Width="160"
+                                        DisplayMemberBinding="{Binding DeletedUtc, StringFormat='{}{0:yyyy-MM-dd HH:mm}'}"/>
+                        <GridViewColumn Header="Mode" Width="100"
+                                        DisplayMemberBinding="{Binding DeleteMode}"/>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+
+            <!-- Empty state -->
+            <StackPanel x:Name="EmptyState"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Visibility="Collapsed">
+                <ui:SymbolIcon Symbol="Delete" Width="64" Height="64"
+                               Foreground="{DynamicResource SecondaryTextBrush}"/>
+                <TextBlock Text="Trash is empty" Margin="0,16,0,0"
+                           Style="{StaticResource TitleTextStyle}"
+                           HorizontalAlignment="Center"
+                           Foreground="{DynamicResource SecondaryTextBrush}"/>
+            </StackPanel>
+
+            <!-- Action bar at bottom when items are selected -->
+            <Border VerticalAlignment="Bottom" Padding="16,10"
+                    Background="{DynamicResource CardBackground}"
+                    x:Name="SelectionBar" Visibility="Collapsed">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock x:Name="SelectionCountText" VerticalAlignment="Center"
+                               Margin="0,0,16,0"/>
+                    <Button Content="Restore" Click="RestoreBtn_Click" Margin="0,0,8,0"
+                            AutomationProperties.Name="Restore selected photos to library"/>
+                    <Button Content="Delete Permanently" Click="DeletePermanentlyBtn_Click"
+                            Foreground="{StaticResource DangerBrush}"
+                            AutomationProperties.Name="Permanently delete selected photos"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </DockPanel>
+</Page>

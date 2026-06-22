@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PhotoAlbum.Api/PhotoAlbum.Api.csproj" />
+    <Project Path="src/PhotoAlbum.App/PhotoAlbum.App.csproj" />
+    <Project Path="src/PhotoAlbum.Core/PhotoAlbum.Core.csproj" />
+    <Project Path="src/PhotoAlbum.Data/PhotoAlbum.Data.csproj" />
+    <Project Path="src/PhotoAlbum.Tests.Integration/PhotoAlbum.Tests.Integration.csproj" />
+    <Project Path="src/PhotoAlbum.Tests.Unit/PhotoAlbum.Tests.Unit.csproj" />
+  </Folder>
+</Solution>

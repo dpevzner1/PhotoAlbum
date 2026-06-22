@@ -1,0 +1,194 @@
+<Page x:Class="PhotoAlbum.App.Views.SettingsView"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.modernwpf.com/2019"
+      Title="Settings"
+      Background="{DynamicResource ContentBackground}">
+    <ScrollViewer Padding="{StaticResource PagePadding}">
+        <StackPanel MaxWidth="600" HorizontalAlignment="Left">
+            <TextBlock Text="Settings" Style="{StaticResource TitleTextStyle}" Margin="0,0,0,24"/>
+
+            <!-- ── Appearance ──────────────────────────────────────────── -->
+            <TextBlock Text="Appearance" Style="{StaticResource SubtitleTextStyle}" Margin="0,0,0,12"/>
+            <Border Style="{StaticResource CardStyle}" Margin="0,0,0,24">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
+                        <TextBlock Text="Theme"/>
+                        <TextBlock Text="Restart not required — applies immediately"
+                                   Style="{StaticResource CaptionTextStyle}"/>
+                    </StackPanel>
+                    <ComboBox x:Name="ThemeCombo"
+                              DockPanel.Dock="Right"
+                              HorizontalAlignment="Right"
+                              MinWidth="140"
+                              SelectionChanged="ThemeCombo_SelectionChanged"
+                              AutomationProperties.Name="App colour theme">
+                        <!-- Index 0=Dark, 1=Light, 2=System — code uses index 2 as default -->
+                        <ComboBoxItem Content="Dark"   Tag="Dark"/>
+                        <ComboBoxItem Content="Light"  Tag="Light"/>
+                        <ComboBoxItem Content="System" Tag="Default" IsSelected="True"/>
+                    </ComboBox>
+                </DockPanel>
+            </Border>
+
+            <!-- ── Metadata ────────────────────────────────────────────── -->
+            <TextBlock Text="Metadata" Style="{StaticResource SubtitleTextStyle}" Margin="0,0,0,12"/>
+            <Border Style="{StaticResource CardStyle}" Margin="0,0,0,24">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Left">
+                        <TextBlock Text="Write metadata back to files"/>
+                        <TextBlock Text="Updates EXIF/XMP in original files (off by default)"
+                                   Style="{StaticResource CaptionTextStyle}"/>
+                    </StackPanel>
+                    <ui:ToggleSwitch x:Name="ExifWritebackToggle"
+                                     DockPanel.Dock="Right"
+                                     HorizontalAlignment="Right"
+                                     VerticalAlignment="Center"
+                                     Toggled="ExifWritebackToggle_Toggled"
+                                     AutomationProperties.Name="Write metadata back to files"
+                                     Header=""/>
+                </DockPanel>
+            </Border>
+
+            <!-- ── Library Locations ──────────────────────────────────── -->
+            <TextBlock Text="Library Locations" Style="{StaticResource SubtitleTextStyle}" Margin="0,0,0,12"/>
+            <Border Style="{StaticResource CardStyle}" Margin="0,0,0,24">
+                <StackPanel>
+                    <TextBlock Text="Folders that have been imported into this library."
+                               Style="{StaticResource CaptionTextStyle}"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,12"/>
+                    <ItemsControl x:Name="FolderLocationsList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="{DynamicResource SeparatorBrush}"
+                                        BorderThickness="0,0,0,1"
+                                        Padding="0,8,0,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="{Binding FolderPath}"
+                                                       FontFamily="Consolas"
+                                                       FontSize="{StaticResource TypeBody}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       ToolTip="{Binding FolderPath}"/>
+                                            <TextBlock Style="{StaticResource CaptionTextStyle}" Margin="0,2,0,0">
+                                                <TextBlock.Text>
+                                                    <MultiBinding StringFormat="{}{0:N0} files · {1} · last indexed {2:MMM d, yyyy}">
+                                                        <Binding Path="FileCount"/>
+                                                        <Binding Path="FormattedSize"/>
+                                                        <Binding Path="LastIndexedUtc"/>
+                                                    </MultiBinding>
+                                                </TextBlock.Text>
+                                            </TextBlock>
+                                        </StackPanel>
+                                        <ui:SymbolIcon Grid.Column="1" Symbol="Folder"
+                                                       Foreground="{DynamicResource SecondaryTextBrush}"
+                                                       VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock x:Name="NoFoldersText"
+                               Text="No folders indexed yet. Use Import Folder in the Library view."
+                               Style="{StaticResource CaptionTextStyle}"
+                               Foreground="{DynamicResource SecondaryTextBrush}"
+                               TextWrapping="Wrap"
+                               Visibility="Collapsed"/>
+                </StackPanel>
+            </Border>
+
+            <!-- ── Local API ───────────────────────────────────────────── -->
+            <TextBlock Text="Local API" Style="{StaticResource SubtitleTextStyle}" Margin="0,0,0,12"/>
+            <Border Style="{StaticResource CardStyle}" Margin="0,0,0,24">
+                <StackPanel>
+                    <!-- Status row -->
+                    <DockPanel Margin="0,0,0,12">
+                        <Button DockPanel.Dock="Right" Click="CheckApiStatus_Click"
+                                AutomationProperties.Name="Check if API is reachable">
+                            Check Status
+                        </Button>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse x:Name="ApiStatusDot" Width="10" Height="10"
+                                     Fill="{DynamicResource SecondaryTextBrush}"
+                                     Margin="0,0,8,0"/>
+                            <TextBlock x:Name="ApiStatusText"
+                                       Text="Status unknown"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </DockPanel>
+
+                    <TextBlock Text="REST API is running on loopback — accessible only from this machine."
+                               Style="{StaticResource CaptionTextStyle}"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,12"/>
+
+                    <!-- Base URL row -->
+                    <DockPanel Margin="0,0,0,8">
+                        <TextBlock Text="Base URL" VerticalAlignment="Center" Width="80"/>
+                        <Button DockPanel.Dock="Right"
+                                Click="ApiUrl_Click"
+                                Margin="8,0,0,0"
+                                AutomationProperties.Name="Copy API URL to clipboard">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="Copy" Margin="0,0,6,0"/>
+                                <TextBlock Text="Copy"/>
+                            </StackPanel>
+                        </Button>
+                        <TextBox IsReadOnly="True"
+                                 Text="http://127.0.0.1:5150/api/v1/"
+                                 FontFamily="Consolas"
+                                 AutomationProperties.Name="API base URL"/>
+                    </DockPanel>
+
+                    <!-- Swagger UI row -->
+                    <DockPanel Margin="0,0,0,8">
+                        <TextBlock Text="Swagger UI" VerticalAlignment="Center" Width="80"/>
+                        <Button DockPanel.Dock="Right"
+                                Click="OpenDocs_Click"
+                                Margin="8,0,0,0"
+                                AutomationProperties.Name="Open Swagger UI in browser">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="Globe" Margin="0,0,6,0"/>
+                                <TextBlock Text="Open"/>
+                            </StackPanel>
+                        </Button>
+                        <TextBox IsReadOnly="True"
+                                 Text="http://127.0.0.1:5150/api/docs"
+                                 FontFamily="Consolas"
+                                 AutomationProperties.Name="Swagger UI URL"/>
+                    </DockPanel>
+
+                    <TextBlock x:Name="ApiCopiedText"
+                               Text="✔ URL copied to clipboard"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Foreground="{StaticResource SuccessBrush}"
+                               Visibility="Collapsed"/>
+                </StackPanel>
+            </Border>
+
+            <!-- ── About ──────────────────────────────────────────────── -->
+            <TextBlock Text="About" Style="{StaticResource SubtitleTextStyle}" Margin="0,0,0,12"/>
+            <Border Style="{StaticResource CardStyle}">
+                <DockPanel>
+                    <ui:SymbolIcon Symbol="Camera" DockPanel.Dock="Left"
+                                   Width="40" Height="40" Margin="0,0,16,0"
+                                   Foreground="{StaticResource AccentBrush}"
+                                   VerticalAlignment="Center"/>
+                    <StackPanel>
+                        <TextBlock Text="Photo Album" FontWeight="SemiBold" FontSize="{StaticResource TypeBody}"/>
+                        <TextBlock Text="v1.0.0" Style="{StaticResource CaptionTextStyle}" Margin="0,4,0,0"/>
+                        <TextBlock Text="Built with .NET 10 + Rust (BLAKE3 · walkdir · image)"
+                                   Style="{StaticResource CaptionTextStyle}"/>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</Page>

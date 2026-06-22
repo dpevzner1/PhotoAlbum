@@ -1,0 +1,35 @@
+name: build
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Rust core
+        working-directory: rust/photoalbum_core
+        run: cargo build --release
+
+      - name: Restore .NET
+        run: dotnet restore PhotoAlbum.slnx
+
+      - name: Build solution
+        run: dotnet build PhotoAlbum.slnx -c Release --no-restore
+
+      - name: Run tests
+        run: dotnet test PhotoAlbum.slnx -c Release --no-build --verbosity normal

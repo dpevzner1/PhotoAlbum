@@ -1,0 +1,219 @@
+<Page x:Class="PhotoAlbum.App.Views.CloneView"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.modernwpf.com/2019"
+      Title="Export / Backup"
+      Background="{DynamicResource ContentBackground}">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="32">
+        <StackPanel MaxWidth="680" HorizontalAlignment="Left">
+
+            <TextBlock Text="Export / Backup" Style="{StaticResource TitleTextStyle}" Margin="0,0,0,4"/>
+            <TextBlock Text="Export your library — or a filtered subset — to any destination. Files are verified with BLAKE3 after copying. You can optionally bundle the application so the export runs standalone on another machine."
+                       Style="{StaticResource CaptionTextStyle}"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,32"/>
+
+            <!-- Export scope -->
+            <TextBlock Text="Export Scope" Style="{StaticResource SubtitleTextStyle}" Margin="0,0,0,8"/>
+            <Border Style="{StaticResource CardStyle}" Margin="0,0,0,24">
+                <StackPanel>
+                    <RadioButton x:Name="ScopeAll" Content="Entire library (full backup)"
+                                 GroupName="Scope" IsChecked="True"
+                                 Checked="Scope_Checked" Margin="0,0,0,6"/>
+                    <RadioButton x:Name="ScopeFolder" Content="Specific folder"
+                                 GroupName="Scope"
+                                 Checked="Scope_Checked" Margin="0,0,0,6"/>
+                    <RadioButton x:Name="ScopeAlbum" Content="Single album"
+                                 GroupName="Scope"
+                                 Checked="Scope_Checked" Margin="0,0,0,6"/>
+                    <RadioButton x:Name="ScopePerson" Content="Single person"
+                                 GroupName="Scope"
+                                 Checked="Scope_Checked" Margin="0,0,0,6"/>
+                    <RadioButton x:Name="ScopeTag" Content="Single tag / label"
+                                 GroupName="Scope"
+                                 Checked="Scope_Checked" Margin="0,0,0,6"/>
+                    <RadioButton x:Name="ScopeCustom"
+                                 Content="Custom filter — combine albums, people, tags, and events"
+                                 GroupName="Scope"
+                                 Checked="Scope_Checked"/>
+
+                    <!-- Scope picker — folder -->
+                    <DockPanel x:Name="FolderPickerRow" Margin="24,12,0,0" Visibility="Collapsed">
+                        <Button DockPanel.Dock="Right" x:Name="BrowseScopeFolderBtn"
+                                Click="BrowseScopeFolderBtn_Click" Margin="8,0,0,0">Browse…</Button>
+                        <TextBox x:Name="ScopeFolderBox" IsReadOnly="True"
+                                 ui:ControlHelper.PlaceholderText="Select folder…"/>
+                    </DockPanel>
+
+                    <!-- Scope picker — single album / person / tag combo -->
+                    <ComboBox x:Name="ScopeCombo"
+                              Margin="24,12,0,0"
+                              Visibility="Collapsed"
+                              MinWidth="240"
+                              SelectionChanged="ScopeCombo_SelectionChanged"
+                              DisplayMemberPath="Name"
+                              AutomationProperties.Name="Scope selection"/>
+
+                    <!-- Custom multi-filter panel -->
+                    <Border x:Name="CustomFilterPanel" Margin="0,16,0,0" Visibility="Collapsed"
+                            Background="{DynamicResource ContentBackground}"
+                            BorderBrush="{DynamicResource SeparatorBrush}"
+                            BorderThickness="0,1,0,0" Padding="0,12,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Include photos that match any of the selected items:"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       Foreground="{DynamicResource SecondaryTextBrush}"
+                                       Margin="0,0,0,12"/>
+
+                            <!-- Albums -->
+                            <TextBlock Text="ALBUMS" Style="{StaticResource MetaLabelStyle}"/>
+                            <ItemsControl x:Name="FilterAlbumsList" Margin="0,4,0,14">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox Tag="{Binding Id}" Content="{Binding Name}"
+                                                  Margin="0,0,20,4"
+                                                  Checked="FilterAlbum_Checked"
+                                                  Unchecked="FilterAlbum_Unchecked"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- People -->
+                            <TextBlock Text="PEOPLE" Style="{StaticResource MetaLabelStyle}"/>
+                            <ItemsControl x:Name="FilterPeopleList" Margin="0,4,0,14">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox Tag="{Binding Id}" Content="{Binding Name}"
+                                                  Margin="0,0,20,4"
+                                                  Checked="FilterPerson_Checked"
+                                                  Unchecked="FilterPerson_Unchecked"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- Tags -->
+                            <TextBlock Text="TAGS / LABELS" Style="{StaticResource MetaLabelStyle}"/>
+                            <ItemsControl x:Name="FilterTagsList" Margin="0,4,0,14">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox Tag="{Binding Id}" Content="{Binding Name}"
+                                                  Margin="0,0,20,4"
+                                                  Checked="FilterTag_Checked"
+                                                  Unchecked="FilterTag_Unchecked"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- Events -->
+                            <TextBlock Text="EVENTS" Style="{StaticResource MetaLabelStyle}"/>
+                            <ItemsControl x:Name="FilterEventsList" Margin="0,4,0,4">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox Tag="{Binding Id}" Content="{Binding Name}"
+                                                  Margin="0,0,20,4"
+                                                  Checked="FilterEvent_Checked"
+                                                  Unchecked="FilterEvent_Unchecked"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock x:Name="FilterSelectionSummary"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       Foreground="{StaticResource AccentBrush}"
+                                       Margin="0,8,0,0" Visibility="Collapsed"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- Destination folder -->
+            <TextBlock Text="Destination Folder" Style="{StaticResource SubtitleTextStyle}" Margin="0,0,0,8"/>
+            <DockPanel Margin="0,0,0,20">
+                <Button DockPanel.Dock="Right" x:Name="BrowseDestBtn"
+                        Click="BrowseDestBtn_Click"
+                        Margin="8,0,0,0"
+                        AutomationProperties.Name="Browse for destination folder">Browse…</Button>
+                <TextBox x:Name="DestBox"
+                         IsReadOnly="True"
+                         ui:ControlHelper.PlaceholderText="Select destination folder…"
+                         AutomationProperties.Name="Destination folder path"/>
+            </DockPanel>
+
+            <!-- Options -->
+            <TextBlock Text="Options" Style="{StaticResource SubtitleTextStyle}" Margin="0,0,0,8"/>
+            <Border Style="{StaticResource CardStyle}" Margin="0,0,0,24">
+                <CheckBox x:Name="IncludeAppChk"
+                          Content="Bundle application — destination can run standalone without installing Photo Album"
+                          IsChecked="True"/>
+            </Border>
+
+            <!-- Action buttons -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,24">
+                <Button x:Name="StartBtn"
+                        Click="StartBtn_Click"
+                        IsEnabled="False"
+                        Background="{StaticResource AccentBrush}"
+                        Foreground="White"
+                        Margin="0,0,8,0"
+                        AutomationProperties.Name="Start export">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Save" Margin="0,0,6,0"/>
+                        <TextBlock Text="Start Export"/>
+                    </StackPanel>
+                </Button>
+                <Button x:Name="CancelBtn"
+                        Click="CancelBtn_Click"
+                        IsEnabled="False"
+                        AutomationProperties.Name="Cancel export">Cancel</Button>
+            </StackPanel>
+
+            <!-- Progress -->
+            <Border x:Name="ProgressPanel" Visibility="Collapsed"
+                    Background="{DynamicResource CardBackground}"
+                    Style="{StaticResource CardStyle}"
+                    Padding="20">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,8">
+                        <TextBlock DockPanel.Dock="Right" x:Name="ProgressCountText"
+                                   Style="{StaticResource CaptionTextStyle}"/>
+                        <TextBlock x:Name="ProgressHeaderText" Text="Exporting…"
+                                   Style="{StaticResource SubtitleTextStyle}"/>
+                    </DockPanel>
+                    <TextBlock x:Name="PhaseText" Style="{StaticResource CaptionTextStyle}"
+                               Foreground="{DynamicResource SecondaryTextBrush}"
+                               Margin="0,0,0,6"/>
+                    <ProgressBar x:Name="ProgressBar" Height="8" Margin="0,0,0,8"
+                                 Minimum="0" Maximum="100" Value="0"
+                                 AutomationProperties.Name="Export progress"/>
+                    <TextBlock x:Name="CurrentFileText" Style="{StaticResource CaptionTextStyle}"
+                               TextTrimming="CharacterEllipsis"/>
+                    <TextBlock x:Name="FailedText" Style="{StaticResource CaptionTextStyle}"
+                               Foreground="{StaticResource DangerBrush}"
+                               Margin="0,4,0,0" Visibility="Collapsed"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Done banner -->
+            <Border x:Name="DoneBanner" Visibility="Collapsed"
+                    Background="{StaticResource SuccessBrush}"
+                    Padding="16,12" Margin="0,16,0,0" CornerRadius="4">
+                <TextBlock x:Name="DoneText" Foreground="White" FontWeight="SemiBold"
+                           TextWrapping="Wrap"/>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</Page>

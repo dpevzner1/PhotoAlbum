@@ -1,0 +1,244 @@
+<Page x:Class="PhotoAlbum.App.Views.HiddenView"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.modernwpf.com/2019"
+      Title="Hidden"
+      Background="{DynamicResource ContentBackground}">
+
+    <DockPanel>
+
+        <!-- Header -->
+        <Border DockPanel.Dock="Top" Padding="16,10" Background="{DynamicResource CardBackground}">
+            <DockPanel>
+                <!-- Lock / PIN buttons (right side) -->
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="ChangePinBtn" Click="ChangePinBtn_Click"
+                            Visibility="Collapsed" Margin="0,0,8,0"
+                            AutomationProperties.Name="Change PIN">Change PIN</Button>
+                    <Button x:Name="RemovePinBtn" Click="RemovePinBtn_Click"
+                            Visibility="Collapsed" Margin="0,0,8,0"
+                            AutomationProperties.Name="Remove PIN">Remove PIN</Button>
+                    <Button x:Name="SetPinBtn" Click="SetPinBtn_Click"
+                            Visibility="Collapsed" Margin="0,0,8,0"
+                            AutomationProperties.Name="Set PIN">Set PIN</Button>
+                    <Button x:Name="LockBtn" Click="LockBtn_Click"
+                            Visibility="Collapsed"
+                            AutomationProperties.Name="Lock hidden content">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="ProtectedDocument" Margin="0,0,6,0"/>
+                            <TextBlock Text="Lock"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+                <TextBlock Text="Hidden" Style="{StaticResource TitleTextStyle}" VerticalAlignment="Center"/>
+            </DockPanel>
+        </Border>
+
+        <!-- ── LOCKED STATE ──────────────────────────────────────────────────── -->
+        <StackPanel x:Name="LockedPanel"
+                    VerticalAlignment="Center" HorizontalAlignment="Center"
+                    Visibility="Collapsed" Width="320">
+            <ui:SymbolIcon Symbol="ProtectedDocument" Width="56" Height="56"
+                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                           HorizontalAlignment="Center"/>
+            <TextBlock Text="Hidden content is locked"
+                       Style="{StaticResource SubtitleTextStyle}"
+                       HorizontalAlignment="Center" Margin="0,12,0,4"/>
+            <TextBlock x:Name="LockSubText"
+                       Style="{StaticResource CaptionTextStyle}"
+                       HorizontalAlignment="Center" Margin="0,0,0,20"/>
+
+            <!-- PIN entry (shown when HasPin) -->
+            <StackPanel x:Name="PinEntryPanel" Visibility="Collapsed">
+                <PasswordBox x:Name="PinBox"
+                             ui:ControlHelper.PlaceholderText="Enter PIN…"
+                             Margin="0,0,0,8"
+                             KeyDown="PinBox_KeyDown"
+                             AutomationProperties.Name="PIN entry"/>
+                <TextBlock x:Name="PinErrorText"
+                           Foreground="{StaticResource DangerBrush}"
+                           FontSize="12" Margin="0,0,0,8"
+                           Visibility="Collapsed"/>
+            </StackPanel>
+
+            <Button x:Name="UnlockBtn" Click="UnlockBtn_Click"
+                    HorizontalAlignment="Center"
+                    Background="{StaticResource AccentBrush}"
+                    Foreground="White"
+                    AutomationProperties.Name="Unlock hidden content">
+                <StackPanel Orientation="Horizontal">
+                    <ui:SymbolIcon Symbol="Permissions" Margin="0,0,6,0"/>
+                    <TextBlock Text="Unlock"/>
+                </StackPanel>
+            </Button>
+        </StackPanel>
+
+        <!-- ── UNLOCKED STATE ────────────────────────────────────────────────── -->
+        <Grid x:Name="UnlockedPanel" Visibility="Collapsed">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="300" MinWidth="220"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left: management -->
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Padding="12">
+                <StackPanel>
+
+                    <!-- Hidden albums -->
+                    <TextBlock Text="HIDDEN ALBUMS" Style="{StaticResource MetaLabelStyle}" Margin="0,0,0,8"/>
+                    <ItemsControl x:Name="HiddenAlbumsList" Margin="0,0,0,4">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,4" Padding="10,8">
+                                    <DockPanel>
+                                        <Button DockPanel.Dock="Right" Tag="{Binding Id}"
+                                                Click="UnhideAlbumBtn_Click"
+                                                Background="Transparent" BorderThickness="0"
+                                                Padding="4,2" Cursor="Hand"
+                                                ToolTip="Remove from hidden"
+                                                AutomationProperties.Name="Unhide album">
+                                            <ui:SymbolIcon Symbol="Cancel" Width="14" Height="14"
+                                                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                                        </Button>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <ui:SymbolIcon Symbol="Folder" Margin="0,0,8,0"
+                                                           Foreground="{StaticResource AccentBrush}"/>
+                                            <TextBlock Text="{Binding Name}"
+                                                       Style="{StaticResource CaptionTextStyle}"
+                                                       Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock x:Name="NoHiddenAlbumsText"
+                               Text="No hidden albums."
+                               Style="{StaticResource CaptionTextStyle}"
+                               Visibility="Collapsed" Margin="0,0,0,4"/>
+
+                    <!-- Add album -->
+                    <DockPanel Margin="0,6,0,20">
+                        <Button DockPanel.Dock="Right" Click="AddHiddenAlbumBtn_Click"
+                                Margin="6,0,0,0"
+                                AutomationProperties.Name="Add album to hidden">
+                            <ui:SymbolIcon Symbol="Add"/>
+                        </Button>
+                        <ComboBox x:Name="AddAlbumCombo"
+                                  DisplayMemberPath="Name"
+                                  ui:ControlHelper.PlaceholderText="Select album…"
+                                  AutomationProperties.Name="Album to hide"/>
+                    </DockPanel>
+
+                    <Separator Background="{DynamicResource SeparatorBrush}" Margin="0,0,0,16"/>
+
+                    <!-- Hidden tags -->
+                    <TextBlock Text="HIDDEN TAGS" Style="{StaticResource MetaLabelStyle}" Margin="0,0,0,8"/>
+                    <ItemsControl x:Name="HiddenTagsList" Margin="0,0,0,4">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,4" Padding="10,8">
+                                    <DockPanel>
+                                        <Button DockPanel.Dock="Right" Tag="{Binding Id}"
+                                                Click="UnhideTagBtn_Click"
+                                                Background="Transparent" BorderThickness="0"
+                                                Padding="4,2" Cursor="Hand"
+                                                ToolTip="Remove from hidden"
+                                                AutomationProperties.Name="Unhide tag">
+                                            <ui:SymbolIcon Symbol="Cancel" Width="14" Height="14"
+                                                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                                        </Button>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <ui:SymbolIcon Symbol="Tag" Margin="0,0,8,0"
+                                                           Foreground="{StaticResource AccentBrush}"/>
+                                            <TextBlock Text="{Binding Name}"
+                                                       Style="{StaticResource CaptionTextStyle}"
+                                                       Foreground="{DynamicResource SystemControlForegroundBaseHighBrush}"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock x:Name="NoHiddenTagsText"
+                               Text="No hidden tags."
+                               Style="{StaticResource CaptionTextStyle}"
+                               Visibility="Collapsed" Margin="0,0,0,4"/>
+
+                    <!-- Add tag -->
+                    <DockPanel Margin="0,6,0,0">
+                        <Button DockPanel.Dock="Right" Click="AddHiddenTagBtn_Click"
+                                Margin="6,0,0,0"
+                                AutomationProperties.Name="Add tag to hidden">
+                            <ui:SymbolIcon Symbol="Add"/>
+                        </Button>
+                        <ComboBox x:Name="AddTagCombo"
+                                  DisplayMemberPath="Name"
+                                  ui:ControlHelper.PlaceholderText="Select tag…"
+                                  AutomationProperties.Name="Tag to hide"/>
+                    </DockPanel>
+
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Splitter -->
+            <GridSplitter Grid.Column="1" Width="4"
+                          HorizontalAlignment="Stretch"
+                          Background="{DynamicResource SeparatorBrush}"/>
+
+            <!-- Right: hidden media grid -->
+            <Grid Grid.Column="2">
+                <StackPanel x:Name="HiddenEmptyPanel"
+                            VerticalAlignment="Center" HorizontalAlignment="Center"
+                            Visibility="Collapsed">
+                    <ui:SymbolIcon Symbol="Pictures" Width="56" Height="56"
+                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                                   HorizontalAlignment="Center"/>
+                    <TextBlock Text="No hidden photos yet."
+                               Style="{StaticResource CaptionTextStyle}"
+                               HorizontalAlignment="Center" Margin="0,12,0,0"/>
+                </StackPanel>
+
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ItemsControl x:Name="HiddenMediaGrid" Margin="8">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Width="160" Height="170" Margin="4"
+                                        Style="{StaticResource CardStyle}"
+                                        Cursor="Hand"
+                                        MouseLeftButtonUp="HiddenThumb_Click">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="*"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <Border Grid.Row="0" Background="{DynamicResource SeparatorBrush}"
+                                                CornerRadius="4" ClipToBounds="True">
+                                            <Image Source="{Binding Thumbnail}"
+                                                   Stretch="UniformToFill"
+                                                   RenderOptions.BitmapScalingMode="HighQuality"/>
+                                        </Border>
+                                        <TextBlock Grid.Row="1"
+                                                   Text="{Binding OriginalName}"
+                                                   FontSize="11"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Margin="4,4,4,2"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </Grid>
+
+    </DockPanel>
+</Page>

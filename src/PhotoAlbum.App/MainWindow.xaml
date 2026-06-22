@@ -1,0 +1,12 @@
+<Window x:Class="PhotoAlbum.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.modernwpf.com/2019"
+        xmlns:views="clr-namespace:PhotoAlbum.App.Views"
+        ui:WindowHelper.UseModernWindowStyle="True"
+        Title="Photo Album"
+        Icon="pack://application:,,,/Resources/camera.ico"
+        MinWidth="800" MinHeight="600"
+        Width="1280" Height="800">
+    <views:AppShell x:Name="Shell"/>
+</Window>

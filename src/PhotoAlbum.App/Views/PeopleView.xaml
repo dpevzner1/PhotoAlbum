@@ -1,0 +1,79 @@
+﻿<Page x:Class="PhotoAlbum.App.Views.PeopleView"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.modernwpf.com/2019"
+      Title="People"
+      Background="{DynamicResource ContentBackground}">
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Padding="16,10" Background="{DynamicResource CardBackground}">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Click="NewPersonBtn_Click"
+                        Style="{StaticResource PillButtonStyle}"
+                        HorizontalAlignment="Right"
+                        AutomationProperties.Name="Add person">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Add" Foreground="White" Margin="0,0,6,0"/>
+                        <TextBlock Text="Add Person" Foreground="White"/>
+                    </StackPanel>
+                </Button>
+                <TextBlock Text="People" Style="{StaticResource TitleTextStyle}" VerticalAlignment="Center"/>
+            </DockPanel>
+        </Border>
+        <ListBox x:Name="PeopleList" Padding="16"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 SelectionMode="Single"
+                 AutomationProperties.Name="People"
+                 BorderThickness="0" Background="Transparent">
+            <ListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <WrapPanel Orientation="Horizontal"/>
+                </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
+            <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem">
+                    <Setter Property="Padding" Value="0"/>
+                    <Setter Property="Margin" Value="0"/>
+                    <Setter Property="Background" Value="Transparent"/>
+                </Style>
+            </ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource CardStyle}" Width="140" Height="185"
+                                Margin="8" Cursor="Hand"
+                                MouseLeftButtonUp="PersonCard_Click"
+                                AutomationProperties.Name="{Binding Name}">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Border Width="72" Height="72" CornerRadius="36"
+                                        Background="{StaticResource AccentBrush}">
+                                    <ui:SymbolIcon Symbol="Contact" Width="36" Height="36"
+                                                   Foreground="White"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock Text="{Binding Name}" TextAlignment="Center"
+                                           Margin="0,8,0,0" TextTrimming="CharacterEllipsis"
+                                           Style="{StaticResource SubtitleTextStyle}"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
+                                            Margin="0,6,0,0">
+                                    <Button Tag="{Binding}" Click="RenamePerson_Click"
+                                            Background="Transparent" BorderThickness="0"
+                                            Padding="4,2" Cursor="Hand"
+                                            AutomationProperties.Name="Rename person">
+                                        <TextBlock Text="Rename" FontSize="11"
+                                                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+                                    </Button>
+                                    <Button Tag="{Binding}" Click="DeletePerson_Click"
+                                            Background="Transparent" BorderThickness="0"
+                                            Padding="4,2" Cursor="Hand"
+                                            AutomationProperties.Name="Delete person">
+                                        <TextBlock Text="Delete" FontSize="11"
+                                                   Foreground="{StaticResource DangerBrush}"/>
+                                    </Button>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
+</Page>

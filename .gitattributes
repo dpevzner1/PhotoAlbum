@@ -1,0 +1,32 @@
+# Normalize line endings — let Git handle text automatically
+* text=auto
+
+# Windows-specific scripts stay CRLF
+*.ps1   text eol=crlf
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.sln   text eol=crlf
+*.slnx  text eol=crlf
+
+# Unix shell scripts stay LF
+*.sh    text eol=lf
+
+# Source: treat as text
+*.cs    text
+*.rs    text
+*.xaml  text
+*.xml   text
+*.json  text
+*.md    text
+*.wxs   text
+*.toml  text
+
+# Binary assets — never diff/merge as text
+*.png   binary
+*.jpg   binary
+*.ico   binary
+*.rtf   binary
+*.dll   binary
+*.exe   binary
+*.msi   binary
+*.part  binary

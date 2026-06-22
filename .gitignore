@@ -1,0 +1,34 @@
+# Build output
+**/bin/
+**/obj/
+dist/
+
+# User data (never commit)
+data/
+logs/
+thumbnails/
+config/portable.json
+
+# Tools binaries (too large, bundled by installer)
+tools/exiftool/
+tools/ffmpeg/
+tools/libvlc/
+
+# Rust
+**/target/
+Cargo.lock
+
+# VS / Rider
+.vs/
+.idea/
+*.user
+*.suo
+*.userprefs
+
+# .NET
+*.nupkg
+*.snupkg
+
+# OS
+Thumbs.db
+.DS_Store

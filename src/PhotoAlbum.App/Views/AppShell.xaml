@@ -1,0 +1,180 @@
+<UserControl x:Class="PhotoAlbum.App.Views.AppShell"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.modernwpf.com/2019"
+             xmlns:views="clr-namespace:PhotoAlbum.App.Views">
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <!-- Nav rail - collapses/expands -->
+            <ColumnDefinition x:Name="NavColumn" Width="220" MinWidth="64"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ── Navigation Rail ──────────────────────────────────────────── -->
+        <Border Grid.Column="0" Background="{DynamicResource NavRailBackground}">
+            <DockPanel>
+                <!-- Header: hamburger + app name -->
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
+                            Margin="12,16,12,8">
+                    <Button x:Name="HamburgerBtn" Style="{StaticResource NavIconButtonStyle}"
+                            Click="HamburgerBtn_Click" ToolTip="Collapse navigation"
+                            AutomationProperties.Name="Toggle navigation">
+                        <ui:SymbolIcon Symbol="GlobalNavigationButton"/>
+                    </Button>
+                    <TextBlock x:Name="AppNameText" Text="Photo Album"
+                               FontSize="{StaticResource TypeSubtitle}"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"
+                               Margin="8,0,0,0"
+                               Visibility="Visible"/>
+                </StackPanel>
+
+                <!-- Main nav items -->
+                <StackPanel DockPanel.Dock="Top" Margin="0,8,0,0">
+                    <RadioButton x:Name="LibraryBtn" Style="{StaticResource NavItemStyle}"
+                                 GroupName="NavGroup" Tag="Library" IsChecked="True"
+                                 Checked="NavBtn_Checked"
+                                 AutomationProperties.Name="Library">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Pictures" Width="20" Height="20"/>
+                            <TextBlock x:Name="LibraryLabel" Text="Library" Margin="12,0,0,0"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </RadioButton>
+
+                    <RadioButton x:Name="AlbumsBtn" Style="{StaticResource NavItemStyle}"
+                                 GroupName="NavGroup" Tag="Albums"
+                                 Checked="NavBtn_Checked"
+                                 AutomationProperties.Name="Albums">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Folder" Width="20" Height="20"/>
+                            <TextBlock x:Name="AlbumsLabel" Text="Albums" Margin="12,0,0,0"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </RadioButton>
+
+                    <RadioButton x:Name="PeopleBtn" Style="{StaticResource NavItemStyle}"
+                                 GroupName="NavGroup" Tag="People"
+                                 Checked="NavBtn_Checked"
+                                 AutomationProperties.Name="People">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="People" Width="20" Height="20"/>
+                            <TextBlock x:Name="PeopleLabel" Text="People" Margin="12,0,0,0"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </RadioButton>
+
+                    <RadioButton x:Name="PlacesBtn" Style="{StaticResource NavItemStyle}"
+                                 GroupName="NavGroup" Tag="Places"
+                                 Checked="NavBtn_Checked"
+                                 AutomationProperties.Name="Places">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Map" Width="20" Height="20"/>
+                            <TextBlock x:Name="PlacesLabel" Text="Places" Margin="12,0,0,0"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </RadioButton>
+
+                    <RadioButton x:Name="EventsBtn" Style="{StaticResource NavItemStyle}"
+                                 GroupName="NavGroup" Tag="Events"
+                                 Checked="NavBtn_Checked"
+                                 AutomationProperties.Name="Events">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Calendar" Width="20" Height="20"/>
+                            <TextBlock x:Name="EventsLabel" Text="Events" Margin="12,0,0,0"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </RadioButton>
+
+                    <RadioButton x:Name="CloneBtn" Style="{StaticResource NavItemStyle}"
+                                 GroupName="NavGroup" Tag="Clone"
+                                 Checked="NavBtn_Checked"
+                                 AutomationProperties.Name="Clone / Backup">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Copy" Width="20" Height="20"/>
+                            <TextBlock x:Name="CloneLabel" Text="Clone" Margin="12,0,0,0"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </RadioButton>
+
+                    <RadioButton x:Name="TrashBtn" Style="{StaticResource NavItemStyle}"
+                                 GroupName="NavGroup" Tag="Trash"
+                                 Checked="NavBtn_Checked"
+                                 AutomationProperties.Name="Trash">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Delete" Width="20" Height="20"/>
+                            <TextBlock x:Name="TrashLabel" Text="Trash" Margin="12,0,0,0"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </RadioButton>
+
+                    <RadioButton x:Name="HiddenBtn" Style="{StaticResource NavItemStyle}"
+                                 GroupName="NavGroup" Tag="Hidden"
+                                 Checked="NavBtn_Checked"
+                                 AutomationProperties.Name="Hidden">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="ProtectedDocument" Width="20" Height="20"/>
+                            <TextBlock x:Name="HiddenLabel" Text="Hidden" Margin="12,0,0,0"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </RadioButton>
+                </StackPanel>
+
+                <!-- Bottom nav: Settings -->
+                <StackPanel DockPanel.Dock="Bottom" Margin="0,0,0,16">
+                    <Separator Background="{DynamicResource SeparatorBrush}" Margin="12,8,12,8"/>
+                    <Button x:Name="SettingsBtn" Style="{StaticResource NavItemButtonStyle}"
+                            Click="NavBtn_Click" Tag="Settings"
+                            AutomationProperties.Name="Settings">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Setting" Width="20" Height="20"/>
+                            <TextBlock x:Name="SettingsLabel" Text="Settings" Margin="12,0,0,0"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <!-- Filler -->
+                <Grid/>
+            </DockPanel>
+        </Border>
+
+        <!-- ── Content area ─────────────────────────────────────────────── -->
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <!-- HEIC warning banner -->
+                <RowDefinition Height="Auto"/>
+                <!-- Page content -->
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- HEIC warning banner (shown when HEIC codec missing) -->
+            <Border x:Name="HeicWarningBanner" Grid.Row="0"
+                    Background="{StaticResource WarningBrush}"
+                    Padding="16,8" Visibility="Collapsed">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Click="HeicBannerClose_Click"
+                            Style="{StaticResource NavIconButtonStyle}"
+                            AutomationProperties.Name="Dismiss HEIC warning">
+                        <ui:SymbolIcon Symbol="Cancel"/>
+                    </Button>
+                    <Button DockPanel.Dock="Right"
+                            Content="Install HEIC Codec →"
+                            Click="HeicInstall_Click"
+                            Margin="0,0,8,0"
+                            AutomationProperties.Name="Open Microsoft Store to install HEIC codec"/>
+                    <TextBlock Text="HEIC/HEIF photos require the HEIC codec to display. Install it from the Microsoft Store."
+                               VerticalAlignment="Center"
+                               Foreground="White" FontWeight="Medium"/>
+                </DockPanel>
+            </Border>
+
+            <!-- Page host -->
+            <Frame x:Name="ContentFrame" Grid.Row="2"
+                   NavigationUIVisibility="Hidden"
+                   Background="{DynamicResource ContentBackground}"/>
+        </Grid>
+    </Grid>
+</UserControl>

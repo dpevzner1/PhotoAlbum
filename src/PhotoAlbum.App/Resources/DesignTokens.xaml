@@ -1,0 +1,395 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+
+    <!-- ── Spacing (4px grid) ────────────────────────────────────────── -->
+    <sys:Double x:Key="Space1">4</sys:Double>
+    <sys:Double x:Key="Space2">8</sys:Double>
+    <sys:Double x:Key="Space3">12</sys:Double>
+    <sys:Double x:Key="Space4">16</sys:Double>
+    <sys:Double x:Key="Space5">20</sys:Double>
+    <sys:Double x:Key="Space6">24</sys:Double>
+    <sys:Double x:Key="Space8">32</sys:Double>
+    <sys:Double x:Key="Space10">40</sys:Double>
+    <sys:Double x:Key="Space12">48</sys:Double>
+
+    <Thickness x:Key="PagePadding">24,20,24,20</Thickness>
+    <Thickness x:Key="CardPadding">16,12,16,12</Thickness>
+    <Thickness x:Key="ThumbnailMargin">4,4,4,4</Thickness>
+
+    <!-- ── Corner radius ──────────────────────────────────────────────── -->
+    <CornerRadius x:Key="CornerSmall">4</CornerRadius>
+    <CornerRadius x:Key="CornerMedium">8</CornerRadius>
+    <CornerRadius x:Key="CornerLarge">12</CornerRadius>
+
+    <!-- ── Accent / semantic colors (theme-invariant) ─────────────────── -->
+    <SolidColorBrush x:Key="AccentBrush"        Color="#0078D4"/>
+    <SolidColorBrush x:Key="AccentHoverBrush"   Color="#106EBE"/>
+    <SolidColorBrush x:Key="AccentPressedBrush" Color="#005A9E"/>
+    <SolidColorBrush x:Key="DangerBrush"        Color="#C42B1C"/>
+    <SolidColorBrush x:Key="SuccessBrush"       Color="#107C10"/>
+    <SolidColorBrush x:Key="WarningBrush"       Color="#F7630C"/>
+
+    <!--
+        Surface brushes (NavRailBackground, ContentBackground, CardBackground,
+        SeparatorBrush, PrimaryTextBrush, SecondaryTextBrush, NavForegroundBrush,
+        NavHoverBrush, NavPressedBrush) are injected by the active theme dictionary
+        (Resources/Themes/Dark.xaml or Light.xaml) via App.xaml.cs at startup
+        and whenever the user changes the theme.
+    -->
+
+    <!-- ── Typography ─────────────────────────────────────────────────── -->
+    <sys:Double x:Key="TypeCaption">11</sys:Double>
+    <sys:Double x:Key="TypeBody">13</sys:Double>
+    <sys:Double x:Key="TypeBodyLarge">15</sys:Double>
+    <sys:Double x:Key="TypeSubtitle">17</sys:Double>
+    <sys:Double x:Key="TypeTitle">22</sys:Double>
+    <sys:Double x:Key="TypeDisplay">28</sys:Double>
+
+    <!-- ── Thumbnail grid sizes ───────────────────────────────────────── -->
+    <sys:Double x:Key="ThumbSmall">120</sys:Double>
+    <sys:Double x:Key="ThumbMedium">180</sys:Double>
+    <sys:Double x:Key="ThumbLarge">240</sys:Double>
+
+    <!-- ── Nav rail width ─────────────────────────────────────────────── -->
+    <sys:Double x:Key="NavRailCollapsedWidth">64</sys:Double>
+    <sys:Double x:Key="NavRailExpandedWidth">220</sys:Double>
+
+    <!-- ── Animation durations ────────────────────────────────────────── -->
+    <Duration x:Key="AnimFast">0:0:0.15</Duration>
+    <Duration x:Key="AnimNormal">0:0:0.25</Duration>
+    <Duration x:Key="AnimSlow">0:0:0.35</Duration>
+
+    <!-- ── Shared styles ──────────────────────────────────────────────── -->
+    <Style x:Key="CardStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource CardBackground}"/>
+        <Setter Property="CornerRadius" Value="{StaticResource CornerMedium}"/>
+        <Setter Property="Padding" Value="{StaticResource CardPadding}"/>
+    </Style>
+
+    <Style x:Key="TitleTextStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource TypeTitle}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
+    </Style>
+
+    <Style x:Key="SubtitleTextStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource TypeSubtitle}"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
+    </Style>
+
+    <Style x:Key="CaptionTextStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource TypeCaption}"/>
+        <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}"/>
+    </Style>
+
+    <Style x:Key="MetaLabelStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource TypeCaption}"/>
+        <Setter Property="Opacity" Value="0.55"/>
+        <Setter Property="Margin" Value="0,0,0,2"/>
+    </Style>
+
+    <!-- ── Pill action button (primary accent, fully-rounded) ──────────── -->
+    <Style x:Key="PillButtonStyle" TargetType="Button">
+        <Setter Property="Background"   Value="{StaticResource AccentBrush}"/>
+        <Setter Property="Foreground"   Value="White"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Height"       Value="34"/>
+        <Setter Property="Cursor"       Value="Hand"/>
+        <Setter Property="Padding"      Value="16,0"/>
+        <Setter Property="FontSize"     Value="{StaticResource TypeBody}"/>
+        <Setter Property="FontWeight"   Value="Medium"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="17"
+                            Padding="{TemplateBinding Padding}"
+                            TextElement.Foreground="{TemplateBinding Foreground}">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background"
+                                    Value="{StaticResource AccentHoverBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background"
+                                    Value="{StaticResource AccentPressedBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.4"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── Pill ghost button (outline variant, no fill) ─────────────────── -->
+    <Style x:Key="PillGhostButtonStyle" TargetType="Button">
+        <Setter Property="Background"      Value="Transparent"/>
+        <Setter Property="BorderBrush"     Value="{StaticResource AccentBrush}"/>
+        <Setter Property="BorderThickness" Value="1.5"/>
+        <Setter Property="Foreground"      Value="{StaticResource AccentBrush}"/>
+        <Setter Property="Height"          Value="34"/>
+        <Setter Property="Cursor"          Value="Hand"/>
+        <Setter Property="Padding"         Value="16,0"/>
+        <Setter Property="FontSize"        Value="{StaticResource TypeBody}"/>
+        <Setter Property="FontWeight"      Value="Medium"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="17"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background"
+                                    Value="#140078D4"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background"
+                                    Value="#280078D4"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── Danger pill (destructive actions: Delete, Empty Trash, etc.) ── -->
+    <Style x:Key="DangerPillButtonStyle" TargetType="Button"
+           BasedOn="{StaticResource PillButtonStyle}">
+        <Setter Property="Background" Value="{StaticResource DangerBrush}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="17"
+                            Padding="{TemplateBinding Padding}"
+                            TextElement.Foreground="{TemplateBinding Foreground}">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="#A0231A"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="#7A1A13"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.4"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── Nav button styles (use DynamicResource so they respond to theme) -->
+    <Style x:Key="NavIconButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Width" Value="40"/>
+        <Setter Property="Height" Value="40"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Foreground" Value="{DynamicResource NavForegroundBrush}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                            CornerRadius="{StaticResource CornerSmall}"
+                            Padding="8">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background"
+                                    Value="{DynamicResource NavHoverBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background"
+                                    Value="{DynamicResource NavPressedBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── Animated nav item (RadioButton) ─────────────────────────────────── -->
+    <Style x:Key="NavItemStyle" TargetType="RadioButton">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="Foreground" Value="{DynamicResource NavForegroundBrush}"/>
+        <Setter Property="Padding" Value="12,10,12,10"/>
+        <Setter Property="Margin" Value="8,2,8,2"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Grid>
+                        <Grid.RenderTransform>
+                            <ScaleTransform x:Name="ContentScale" ScaleX="1" ScaleY="1"
+                                            CenterX="0.5" CenterY="0.5"/>
+                        </Grid.RenderTransform>
+
+                        <!-- Active tint background -->
+                        <Border x:Name="ActiveBg"
+                                Background="{DynamicResource NavActiveBrush}"
+                                CornerRadius="6" Opacity="0"/>
+
+                        <!-- Hover background -->
+                        <Border x:Name="HoverBg"
+                                Background="{DynamicResource NavHoverBrush}"
+                                CornerRadius="6" Opacity="0"/>
+
+                        <!-- Left accent indicator bar -->
+                        <Border x:Name="ActiveBar"
+                                Background="{StaticResource AccentBrush}"
+                                Width="3" CornerRadius="2"
+                                HorizontalAlignment="Left"
+                                Margin="0,8,0,8"
+                                Opacity="0"/>
+
+                        <!-- Content -->
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="Center"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <!-- Smooth hover fade in -->
+                        <EventTrigger RoutedEvent="MouseEnter">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HoverBg"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="1" Duration="0:0:0.12"/>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <EventTrigger RoutedEvent="MouseLeave">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HoverBg"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="0" Duration="0:0:0.22"/>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+
+                        <!-- Press scale -->
+                        <EventTrigger RoutedEvent="PreviewMouseLeftButtonDown">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="ContentScale"
+                                                     Storyboard.TargetProperty="ScaleX"
+                                                     To="0.96" Duration="0:0:0.07"/>
+                                    <DoubleAnimation Storyboard.TargetName="ContentScale"
+                                                     Storyboard.TargetProperty="ScaleY"
+                                                     To="0.96" Duration="0:0:0.07"/>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <EventTrigger RoutedEvent="PreviewMouseLeftButtonUp">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="ContentScale"
+                                                     Storyboard.TargetProperty="ScaleX"
+                                                     To="1" Duration="0:0:0.18">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut"/>
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                    <DoubleAnimation Storyboard.TargetName="ContentScale"
+                                                     Storyboard.TargetProperty="ScaleY"
+                                                     To="1" Duration="0:0:0.18">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut"/>
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+
+                        <!-- Selected state: accent bar + tint, animated -->
+                        <Trigger Property="IsChecked" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="ActiveBg"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="0:0:0.18"/>
+                                        <DoubleAnimation Storyboard.TargetName="ActiveBar"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1" Duration="0:0:0.18"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="ActiveBg"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="0:0:0.22"/>
+                                        <DoubleAnimation Storyboard.TargetName="ActiveBar"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="0:0:0.22"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Legacy alias so any remaining Button-based nav items still compile -->
+    <Style x:Key="NavItemButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="Foreground" Value="{DynamicResource NavForegroundBrush}"/>
+        <Setter Property="Padding" Value="12,10,12,10"/>
+        <Setter Property="Margin" Value="8,2,8,2"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                            CornerRadius="{StaticResource CornerSmall}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background"
+                                    Value="{DynamicResource NavHoverBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background"
+                                    Value="{DynamicResource NavPressedBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

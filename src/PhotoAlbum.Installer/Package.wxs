@@ -1,0 +1,95 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+
+  <Package
+    Name="Photo Album"
+    Manufacturer="Antigrav"
+    Version="1.0.0.0"
+    UpgradeCode="D4E52F7A-3B81-4C9D-8B2E-6F0A1C5E9D3B"
+    Language="1033"
+    Codepage="1252"
+    Description="Photo Album — Personal photo library manager for Windows">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Photo Album is already installed."/>
+    <MediaTemplate EmbedCab="yes"/>
+
+    <ui:WixUI Id="WixUI_InstallDir"/>
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER"/>
+
+    <!-- License -->
+    <WixVariable Id="WixUILicenseRtf" Value="License.rtf"/>
+
+    <!-- ─── Directory structure ──────────────────────────────────────── -->
+    <StandardDirectory Id="ProgramFilesFolder">
+      <Directory Id="INSTALLFOLDER" Name="PhotoAlbum">
+        <Directory Id="BinFolder" Name="bin"/>
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="StartMenuFolder" Name="Photo Album"/>
+    </StandardDirectory>
+
+    <!-- ─── Components ───────────────────────────────────────────────── -->
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <!-- Main executable -->
+      <Component Id="MainExe">
+        <File Id="PhotoAlbumExe"
+              Source="$(var.AppPublishDir)PhotoAlbum.App.exe"
+              KeyPath="yes">
+          <!-- Start menu shortcut -->
+          <Shortcut Id="StartMenuShortcut"
+                    Directory="StartMenuFolder"
+                    Name="Photo Album"
+                    Description="Personal photo library manager"
+                    WorkingDirectory="INSTALLFOLDER"
+                    Advertise="yes"/>
+          <!-- Desktop shortcut -->
+          <Shortcut Id="DesktopShortcut"
+                    Directory="DesktopFolder"
+                    Name="Photo Album"
+                    Description="Personal photo library manager"
+                    WorkingDirectory="INSTALLFOLDER"
+                    Advertise="yes"/>
+        </File>
+      </Component>
+
+      <!-- Rust native DLL -->
+      <Component Id="RustDll">
+        <File Id="PhotoAlbumCoreDll"
+              Source="$(var.AppPublishDir)photoalbum_core.dll"
+              KeyPath="yes"/>
+      </Component>
+
+      <!-- All other published files (via harvest) -->
+      <Component Id="AppBinaries" Guid="*">
+        <util:XmlFile
+          Id="BinaryManifestEntry"
+          File="[INSTALLFOLDER]binary_manifest.xml"
+          Action="setValue"
+          ElementPath="//BinaryManifest"
+          Name="Version"
+          Value="1.0.0.0"/>
+      </Component>
+    </ComponentGroup>
+
+    <!-- ─── Desktop shortcut directory reference ─────────────────────── -->
+    <StandardDirectory Id="DesktopFolder"/>
+
+    <!-- ─── Feature ──────────────────────────────────────────────────── -->
+    <Feature Id="ProductFeature" Title="Photo Album" Level="1">
+      <ComponentGroupRef Id="AppFiles"/>
+      <ComponentGroupRef Id="HarvestedAppFiles"/>
+    </Feature>
+
+    <!-- ─── Registry: uninstall info ─────────────────────────────────── -->
+    <Component Id="RegistryEntries" Directory="INSTALLFOLDER" Guid="*">
+      <RegistryKey Root="HKCU" Key="Software\Antigrav\PhotoAlbum">
+        <RegistryValue Name="InstallPath" Value="[INSTALLFOLDER]" Type="string" KeyPath="yes"/>
+        <RegistryValue Name="Version" Value="1.0.0.0" Type="string"/>
+      </RegistryKey>
+    </Component>
+
+  </Package>
+</Wix>

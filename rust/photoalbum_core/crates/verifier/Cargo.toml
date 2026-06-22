@@ -1,0 +1,11 @@
+﻿[package]
+name    = "verifier"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+blake3    = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

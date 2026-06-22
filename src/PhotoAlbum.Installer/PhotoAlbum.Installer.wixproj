@@ -1,0 +1,13 @@
+<Project Sdk="WixToolset.Sdk/5.0.0">
+  <PropertyGroup>
+    <OutputName>PhotoAlbum-Setup</OutputName>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- Path to the published app -->
+    <AppPublishDir>$(MSBuildThisFileDirectory)..\PhotoAlbum.App\bin\Release\net10.0-windows\win-x64\publish\</AppPublishDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext" Version="5.0.0"/>
+    <PackageReference Include="WixToolset.Util.wixext" Version="5.0.0"/>
+  </ItemGroup>
+</Project>

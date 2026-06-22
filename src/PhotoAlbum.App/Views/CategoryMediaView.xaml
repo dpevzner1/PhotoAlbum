@@ -1,0 +1,87 @@
+<Page x:Class="PhotoAlbum.App.Views.CategoryMediaView"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.modernwpf.com/2019"
+      Title="Category"
+      Background="{DynamicResource ContentBackground}">
+    <DockPanel>
+        <!-- Header -->
+        <Border DockPanel.Dock="Top" Padding="8,10,16,10" Background="{DynamicResource CardBackground}">
+            <DockPanel>
+                <Button DockPanel.Dock="Left" Click="BackBtn_Click"
+                        Width="40" Height="40"
+                        Background="Transparent" BorderThickness="0" Cursor="Hand"
+                        AutomationProperties.Name="Back">
+                    <ui:SymbolIcon Symbol="Back"/>
+                </Button>
+                <TextBlock x:Name="CountText"
+                           DockPanel.Dock="Right"
+                           Style="{StaticResource CaptionTextStyle}"
+                           Foreground="{DynamicResource SecondaryTextBrush}"
+                           VerticalAlignment="Center"/>
+                <TextBlock x:Name="TitleText"
+                           Style="{StaticResource TitleTextStyle}"
+                           VerticalAlignment="Center" Margin="8,0,12,0"/>
+            </DockPanel>
+        </Border>
+
+        <!-- Loading indicator -->
+        <Border x:Name="LoadingPanel" DockPanel.Dock="Top"
+                Padding="16,8" Visibility="Collapsed">
+            <StackPanel Orientation="Horizontal">
+                <ui:ProgressRing IsActive="True" Width="20" Height="20" Margin="0,0,8,0"/>
+                <TextBlock Text="Loading…" Style="{StaticResource CaptionTextStyle}"
+                           VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Empty state -->
+        <StackPanel x:Name="EmptyPanel" DockPanel.Dock="Top"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Margin="0,60,0,0" Visibility="Collapsed">
+            <ui:SymbolIcon Symbol="Pictures" Width="64" Height="64"
+                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"
+                           HorizontalAlignment="Center"/>
+            <TextBlock Text="No photos in this category"
+                       Style="{StaticResource SubtitleTextStyle}"
+                       HorizontalAlignment="Center" Margin="0,12,0,0"
+                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}"/>
+        </StackPanel>
+
+        <!-- Thumbnail grid -->
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl x:Name="PhotoGrid" Margin="8">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource CardStyle}" Width="160" Height="170"
+                                Margin="8" Cursor="Hand"
+                                MouseLeftButtonUp="Thumb_Click"
+                                AutomationProperties.Name="{Binding OriginalName}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Image Grid.Row="0" Source="{Binding Thumbnail}"
+                                       Stretch="UniformToFill"
+                                       RenderOptions.BitmapScalingMode="HighQuality">
+                                    <Image.LayoutTransform>
+                                        <RotateTransform Angle="{Binding RotationDegrees}"/>
+                                    </Image.LayoutTransform>
+                                </Image>
+                                <TextBlock Grid.Row="1" Text="{Binding OriginalName}"
+                                           Style="{StaticResource CaptionTextStyle}"
+                                           Margin="4,4,4,4" TextTrimming="CharacterEllipsis"/>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </DockPanel>
+</Page>

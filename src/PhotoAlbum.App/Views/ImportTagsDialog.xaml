@@ -1,0 +1,81 @@
+<Window x:Class="PhotoAlbum.App.Views.ImportTagsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.modernwpf.com/2019"
+        ui:WindowHelper.UseModernWindowStyle="True"
+        Title="Tag Imported Photos"
+        Width="520" SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+
+    <StackPanel Margin="24,20,24,20">
+        <TextBlock Text="Batch Tag Imported Photos"
+                   FontSize="{StaticResource TypeSubtitle}"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource PrimaryTextBrush}"
+                   Margin="0,0,0,6"/>
+        <TextBlock Text="All photos in this import will receive the selected tags. You can add more tags to individual photos later."
+                   Style="{StaticResource CaptionTextStyle}"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,20"/>
+
+        <!-- Existing tag chips -->
+        <TextBlock Text="Existing Tags"
+                   Style="{StaticResource CaptionTextStyle}"
+                   Margin="0,0,0,8"/>
+
+        <Border Background="{DynamicResource ContentBackground}"
+                BorderBrush="{DynamicResource SeparatorBrush}"
+                BorderThickness="1"
+                CornerRadius="{StaticResource CornerSmall}"
+                Padding="12,10"
+                MinHeight="60"
+                Margin="0,0,0,16">
+            <WrapPanel x:Name="ExistingTagsPanel" Orientation="Horizontal"/>
+        </Border>
+
+        <!-- New custom tag entry -->
+        <TextBlock Text="Add New Tag"
+                   Style="{StaticResource CaptionTextStyle}"
+                   Margin="0,0,0,8"/>
+        <DockPanel Margin="0,0,0,20">
+            <Button DockPanel.Dock="Right"
+                    x:Name="AddTagBtn"
+                    Click="AddTagBtn_Click"
+                    Margin="8,0,0,0"
+                    AutomationProperties.Name="Create and add custom tag">
+                <StackPanel Orientation="Horizontal">
+                    <ui:SymbolIcon Symbol="Add" Margin="0,0,4,0"/>
+                    <TextBlock Text="Add"/>
+                </StackPanel>
+            </Button>
+            <TextBox x:Name="NewTagBox"
+                     ui:ControlHelper.PlaceholderText="Type a tag name…"
+                     KeyDown="NewTagBox_KeyDown"
+                     AutomationProperties.Name="New tag name"/>
+        </DockPanel>
+
+        <!-- Selected summary -->
+        <TextBlock x:Name="SummaryText"
+                   Text="No tags selected — import will proceed without tags."
+                   Style="{StaticResource CaptionTextStyle}"
+                   Foreground="{DynamicResource SecondaryTextBrush}"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,20"/>
+
+        <!-- Action buttons -->
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="Skip (no tags)"
+                    Click="SkipBtn_Click"
+                    Margin="0,0,8,0"
+                    AutomationProperties.Name="Skip tagging and import without tags"/>
+            <Button Content="Apply Tags &amp; Import"
+                    x:Name="ApplyBtn"
+                    Click="ApplyBtn_Click"
+                    Background="{StaticResource AccentBrush}"
+                    Foreground="White"
+                    AutomationProperties.Name="Apply selected tags and begin import"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

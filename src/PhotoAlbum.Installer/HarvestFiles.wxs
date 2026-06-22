@@ -1,0 +1,15 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <!--
+    Harvests all files from the published app output into the INSTALLFOLDER.
+    Run `dotnet publish` on PhotoAlbum.App before building this installer.
+    Command:
+      dotnet publish ..\PhotoAlbum.App\PhotoAlbum.App.csproj
+        -c Release -r win-x64 --self-contained true
+        -o ..\PhotoAlbum.App\bin\Release\net10.0-windows\win-x64\publish\
+  -->
+  <Fragment>
+    <ComponentGroup Id="HarvestedAppFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.AppPublishDir)**" Exclude="$(var.AppPublishDir)*.pdb"/>
+    </ComponentGroup>
+  </Fragment>
+</Wix>

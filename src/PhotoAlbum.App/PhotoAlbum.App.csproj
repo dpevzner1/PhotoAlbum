@@ -1,0 +1,99 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationIcon>Resources\camera.ico</ApplicationIcon>
+
+    <!-- ── Harness paths ─────────────────────────────────────────────── -->
+    <HarnessDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\COMPILED\'))</HarnessDir>
+    <RustWorkspace>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\rust\photoalbum_core\'))</RustWorkspace>
+    <RustDll>$(RustWorkspace)target\release\photoalbum_core.dll</RustDll>
+
+    <!-- dotnet publish always goes to COMPILED -->
+    <PublishDir>$(HarnessDir)</PublishDir>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>false</PublishSingleFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Embed camera.ico as a WPF resource so Window.Icon pack URI resolves at runtime -->
+    <Resource Include="Resources\camera.ico"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PhotoAlbum.Core\PhotoAlbum.Core.csproj" />
+    <ProjectReference Include="..\PhotoAlbum.Data\PhotoAlbum.Data.csproj" />
+    <ProjectReference Include="..\PhotoAlbum.Api\PhotoAlbum.Api.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3296.44" />
+    <PackageReference Include="LibVLCSharp.WPF" Version="3.10.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.9" />
+    <PackageReference Include="ModernWpfUI" Version="0.9.6" />
+    <PackageReference Include="Serilog.Extensions.Hosting" Version="10.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+    <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.23.1" />
+  </ItemGroup>
+
+  <!-- ── 1. Build Rust DLL before C# compiles ──────────────────────────
+       Skipped if DLL is already newer than all Rust source files.
+       Requires cargo + MinGW on PATH (set via MSYS2_PATH env var or
+       C:\msys64\mingw64\bin being in the system PATH).              -->
+  <Target Name="BuildRustCore" BeforeTargets="Build"
+          Condition="'$(SkipRustBuild)' != 'true'">
+
+    <Message Text="▶ Building Rust core (photoalbum_core)…" Importance="High"/>
+    <Exec Command="cmd /c &quot;$(RustWorkspace)build-release.cmd&quot;"
+          ContinueOnError="false"/>
+    <Message Text="✔ Rust build complete" Importance="High"/>
+  </Target>
+
+  <!-- ── 2. Copy Rust DLL into the C# build output ─────────────────── -->
+  <Target Name="CopyRustDllToOutput" AfterTargets="BuildRustCore"
+          BeforeTargets="Build">
+    <Copy SourceFiles="$(RustDll)"
+          DestinationFolder="$(OutputPath)"
+          SkipUnchangedFiles="true"
+          OverwriteReadOnlyFiles="true"/>
+  </Target>
+
+  <!-- ── 3. Fast-sync harness after every successful build ─────────────
+       Copies only the app assemblies + Rust DLL to COMPILED.
+       The self-contained runtime files (459 MB) are already there from
+       the initial publish and don't change between builds.
+       Run  dotnet publish  to do a full harness refresh.            -->
+  <Target Name="SyncHarness" AfterTargets="Build"
+          Condition="Exists('$(HarnessDir)')">
+
+    <!-- App assemblies produced by this project and its references -->
+    <ItemGroup>
+      <_HarnessSync Include="$(OutputPath)PhotoAlbum.App.exe"/>
+      <_HarnessSync Include="$(OutputPath)PhotoAlbum.App.dll"/>
+      <_HarnessSync Include="$(OutputPath)PhotoAlbum.Core.dll"/>
+      <_HarnessSync Include="$(OutputPath)PhotoAlbum.Data.dll"/>
+      <_HarnessSync Include="$(OutputPath)PhotoAlbum.Api.dll"/>
+      <_HarnessSync Include="$(OutputPath)PhotoAlbum.App.runtimeconfig.json"/>
+      <!-- Theme dictionaries are compiled into the assembly — no loose files needed.
+           The exe itself carries them. Nothing extra to sync here. -->
+      <_HarnessSync Include="$(OutputPath)PhotoAlbum.App.deps.json"/>
+      <_HarnessSync Include="$(RustDll)"/>
+    </ItemGroup>
+
+    <Copy SourceFiles="@(_HarnessSync)"
+          DestinationFolder="$(HarnessDir)"
+          SkipUnchangedFiles="true"
+          OverwriteReadOnlyFiles="true"
+          Condition="Exists('%(Identity)')"/>
+
+    <Message Text="✔ Harness synced → $(HarnessDir)" Importance="High"/>
+  </Target>
+
+</Project>

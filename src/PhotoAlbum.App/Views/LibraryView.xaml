@@ -1,0 +1,456 @@
+<Page x:Class="PhotoAlbum.App.Views.LibraryView"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.modernwpf.com/2019"
+      xmlns:vm="clr-namespace:PhotoAlbum.App.ViewModels"
+      Title="Library"
+      Background="{DynamicResource ContentBackground}">
+
+    <Page.InputBindings>
+        <!-- Ctrl+A = Select All (in multi-select mode) -->
+        <KeyBinding Key="A" Modifiers="Ctrl" Command="{Binding SelectAllCommand}"/>
+        <!-- Escape = Cancel multi-select -->
+        <KeyBinding Key="Escape" Command="{Binding ToggleMultiSelectCommand}"/>
+        <!-- F5 = Refresh -->
+        <KeyBinding Key="F5" Command="{Binding LoadCommand}"/>
+    </Page.InputBindings>
+
+    <Page.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
+        <DataTemplate x:Key="ThumbnailTemplate" DataType="{x:Type vm:MediaItemVm}">
+            <Border Style="{StaticResource CardStyle}"
+                    Margin="{StaticResource ThumbnailMargin}"
+                    Cursor="Hand"
+                    MouseLeftButtonUp="Thumb_Click"
+                    MouseEnter="Thumb_MouseEnter"
+                    AutomationProperties.Name="{Binding OriginalName}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Thumbnail image — blurred when hidden -->
+                    <Border Grid.Row="0" CornerRadius="6" ClipToBounds="True">
+                        <Image Source="{Binding Thumbnail}"
+                               Stretch="UniformToFill"
+                               RenderOptions.BitmapScalingMode="HighQuality">
+                            <Image.LayoutTransform>
+                                <RotateTransform Angle="{Binding RotationDegrees}"/>
+                            </Image.LayoutTransform>
+                            <Image.Style>
+                                <Style TargetType="Image">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsHiddenContent}" Value="True">
+                                            <Setter Property="Effect">
+                                                <Setter.Value>
+                                                    <BlurEffect Radius="18"/>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Image.Style>
+                        </Image>
+                    </Border>
+
+                    <!-- Hidden content mask — lock icon + label -->
+                    <Grid Grid.Row="0">
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsHiddenContent}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+                        <Border Background="#A0000000" CornerRadius="6"/>
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <ui:SymbolIcon Symbol="ProtectedDocument" Width="26" Height="26"
+                                           Foreground="White" HorizontalAlignment="Center"/>
+                            <TextBlock Text="HIDDEN" Foreground="#CCffffff"
+                                       FontSize="9" FontWeight="Bold"
+                                       HorizontalAlignment="Center" Margin="0,5,0,0"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Dark tint overlay when selected -->
+                    <Border Grid.Row="0"
+                            Background="#50000000"
+                            Visibility="{Binding IsSelected, Converter={StaticResource BoolToVis}}"/>
+
+                    <!-- Selection circle — always visible in select mode; filled when selected -->
+                    <Grid Grid.Row="0" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6"
+                          Visibility="{Binding DataContext.IsMultiSelectMode,
+                              RelativeSource={RelativeSource AncestorType=Page},
+                              Converter={StaticResource BoolToVis}}">
+                        <Ellipse Width="24" Height="24"
+                                 Fill="#80000000"
+                                 Stroke="White" StrokeThickness="2"/>
+                        <Ellipse Width="24" Height="24"
+                                 Fill="{StaticResource AccentBrush}"
+                                 Visibility="{Binding IsSelected, Converter={StaticResource BoolToVis}}"/>
+                        <ui:SymbolIcon Symbol="Accept" Foreground="White" Width="14" Height="14"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVis}}"/>
+                    </Grid>
+
+                    <!-- Caption -->
+                    <TextBlock Grid.Row="1"
+                               Text="{Binding OriginalName}"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Margin="0,4,0,0"
+                               TextTrimming="CharacterEllipsis"/>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </Page.Resources>
+
+    <DockPanel>
+        <!-- ── Row 1: Main toolbar ──────────────────────────────────────── -->
+        <Border DockPanel.Dock="Top" Padding="16,10" Background="{DynamicResource CardBackground}">
+            <DockPanel>
+                <Button DockPanel.Dock="Right"
+                        Command="{Binding ImportFolderCommand}"
+                        Style="{StaticResource PillButtonStyle}"
+                        Margin="8,0,0,0"
+                        AutomationProperties.Name="Import folder">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Add" Margin="0,0,6,0"/>
+                        <TextBlock Text="Import Folder"/>
+                    </StackPanel>
+                </Button>
+
+                <ToggleButton DockPanel.Dock="Right"
+                              IsChecked="{Binding IsMultiSelectMode, Mode=TwoWay}"
+                              Margin="8,0,0,0"
+                              AutomationProperties.Name="Toggle multi-select mode">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="SelectAll" Margin="0,0,6,0"/>
+                        <TextBlock Text="Select"/>
+                    </StackPanel>
+                </ToggleButton>
+
+                <Slider DockPanel.Dock="Right"
+                        Value="{Binding ThumbnailSize}" Minimum="80" Maximum="360"
+                        Width="120" VerticalAlignment="Center" Margin="8,0,0,0"
+                        AutomationProperties.Name="Thumbnail size"/>
+                <TextBox DockPanel.Dock="Left"
+                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                         ui:ControlHelper.PlaceholderText="Search photos…"
+                         Width="280"/>
+            </DockPanel>
+        </Border>
+
+        <!-- ── Row 2: Filter strip ──────────────────────────────────────── -->
+        <Border DockPanel.Dock="Top" Padding="16,6" Background="{DynamicResource ContentBackground}"
+                BorderBrush="{DynamicResource SeparatorBrush}" BorderThickness="0,0,0,1">
+            <DockPanel>
+                <!-- Clear filters — only visible when any filter is active -->
+                <Button DockPanel.Dock="Right"
+                        Command="{Binding ClearFiltersCommand}"
+                        Visibility="{Binding HasActiveFilters, Converter={StaticResource BoolToVis}}"
+                        Margin="8,0,0,0"
+                        AutomationProperties.Name="Clear all filters">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Cancel" Margin="0,0,4,0"/>
+                        <TextBlock Text="Clear"/>
+                    </StackPanel>
+                </Button>
+
+                <StackPanel Orientation="Horizontal">
+                    <!-- Type filter -->
+                    <TextBlock Text="Type:" VerticalAlignment="Center"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Margin="0,0,6,0"/>
+                    <ComboBox SelectedIndex="{Binding FilterTypeIndex, Mode=TwoWay}"
+                              Width="90" Margin="0,0,16,0"
+                              AutomationProperties.Name="Filter by media type">
+                        <ComboBoxItem Content="All"/>
+                        <ComboBoxItem Content="Photos"/>
+                        <ComboBoxItem Content="Videos"/>
+                    </ComboBox>
+
+                    <!-- Rating filter -->
+                    <TextBlock Text="Rating:" VerticalAlignment="Center"
+                               Style="{StaticResource CaptionTextStyle}"
+                               Margin="0,0,6,0"/>
+                    <ComboBox SelectedIndex="{Binding FilterMinRating, Mode=TwoWay}"
+                              Width="90" Margin="0,0,16,0"
+                              AutomationProperties.Name="Filter by minimum star rating">
+                        <ComboBoxItem Content="Any"/>
+                        <ComboBoxItem Content="1★ +"/>
+                        <ComboBoxItem Content="2★ +"/>
+                        <ComboBoxItem Content="3★ +"/>
+                        <ComboBoxItem Content="4★ +"/>
+                        <ComboBoxItem Content="5★"/>
+                    </ComboBox>
+
+                    <!-- Favorites toggle -->
+                    <ToggleButton IsChecked="{Binding ShowOnlyFavorites, Mode=TwoWay}"
+                                  Padding="8,4"
+                                  AutomationProperties.Name="Show favorites only">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Favorite" Margin="0,0,4,0"/>
+                            <TextBlock Text="Favorites"/>
+                        </StackPanel>
+                    </ToggleButton>
+
+                    <!-- Show Hidden toggle — only visible when hidden content exists.
+                         Icon + label reflect the on/off state. -->
+                    <ToggleButton x:Name="ShowHiddenBtn"
+                                  Padding="8,4" Margin="8,0,0,0"
+                                  Click="ShowHiddenBtn_Click"
+                                  AutomationProperties.Name="Show hidden content"
+                                  Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Margin="0,0,4,0">
+                                <ui:SymbolIcon.Style>
+                                    <Style TargetType="ui:SymbolIcon">
+                                        <Setter Property="Symbol" Value="ProtectedDocument"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsChecked,
+                                                RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True">
+                                                <Setter Property="Symbol" Value="View"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ui:SymbolIcon.Style>
+                            </ui:SymbolIcon>
+                            <TextBlock>
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="Show Hidden"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsChecked,
+                                                RelativeSource={RelativeSource AncestorType=ToggleButton}}" Value="True">
+                                                <Setter Property="Text" Value="Hide Hidden"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </ToggleButton>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- ── Row 3: Unified filter strip ──────────────────────────────── -->
+        <Border DockPanel.Dock="Top" Padding="16,5" Background="{DynamicResource ContentBackground}"
+                BorderBrush="{DynamicResource SeparatorBrush}" BorderThickness="0,0,0,1">
+            <DockPanel>
+                <!-- Filter button with categorized popup -->
+                <Button DockPanel.Dock="Left" x:Name="FilterBtn"
+                        Click="FilterBtn_Click"
+                        Padding="8,4" Margin="0,0,10,0"
+                        AutomationProperties.Name="Add filter">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Filter" Margin="0,0,4,0"/>
+                        <TextBlock Text="Filter"/>
+                        <TextBlock Text="▾" Margin="6,0,0,0" FontSize="10"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <Popup x:Name="FilterPopup"
+                       PlacementTarget="{Binding ElementName=FilterBtn}"
+                       Placement="Bottom"
+                       StaysOpen="False"
+                       AllowsTransparency="True">
+                    <Border Background="{DynamicResource CardBackground}"
+                            BorderBrush="{DynamicResource SeparatorBrush}"
+                            BorderThickness="1"
+                            CornerRadius="{StaticResource CornerSmall}"
+                            Padding="4"
+                            MaxHeight="420"
+                            MinWidth="220">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <!-- One section per category (People, Places, Years, Events, Albums, Tags) -->
+                            <ItemsControl ItemsSource="{Binding FilterCategories}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="0,2,0,6">
+                                            <TextBlock Text="{Binding Header}"
+                                                       Style="{StaticResource CaptionTextStyle}"
+                                                       FontWeight="SemiBold"
+                                                       Opacity="0.7"
+                                                       Margin="10,4,0,2"/>
+                                            <ItemsControl ItemsSource="{Binding Options}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Button Content="{Binding Name}"
+                                                                HorizontalContentAlignment="Left"
+                                                                HorizontalAlignment="Stretch"
+                                                                Padding="16,5,10,5"
+                                                                BorderThickness="0"
+                                                                Background="Transparent"
+                                                                Click="FilterOptionItem_Click"
+                                                                Tag="{Binding}"
+                                                                AutomationProperties.Name="{Binding Name}"/>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Border>
+                </Popup>
+
+                <!-- Active filter chips (any category) -->
+                <ItemsControl ItemsSource="{Binding ActiveFilters}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="{StaticResource AccentBrush}"
+                                    CornerRadius="12"
+                                    Padding="8,3,4,3"
+                                    Margin="0,0,6,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Foreground="White"
+                                               FontSize="{StaticResource TypeCaption}"
+                                               VerticalAlignment="Center">
+                                        <Run Text="{Binding KindLabel, Mode=OneWay}" FontWeight="SemiBold"/>
+                                        <Run Text="·" Foreground="#B0FFFFFF"/>
+                                        <Run Text="{Binding Name, Mode=OneWay}"/>
+                                    </TextBlock>
+                                    <Button Content="✕"
+                                            Foreground="White"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            Padding="6,0,0,0"
+                                            FontSize="10"
+                                            Command="{Binding DataContext.RemoveFilterCommand,
+                                                RelativeSource={RelativeSource AncestorType=Page}}"
+                                            CommandParameter="{Binding}"
+                                            AutomationProperties.Name="{Binding Name, StringFormat='Remove filter: {0}'}"/>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </DockPanel>
+        </Border>
+
+        <!-- Multi-select action bar -->
+        <Border DockPanel.Dock="Top"
+                Padding="12,8"
+                Background="{StaticResource AccentBrush}"
+                Visibility="{Binding IsMultiSelectMode, Converter={StaticResource BoolToVis}}">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" Foreground="White"
+                           FontWeight="SemiBold" Margin="0,0,16,0">
+                    <Run Text="{Binding SelectedCount}"/>
+                    <Run Text=" selected"/>
+                </TextBlock>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Command="{Binding SelectAllCommand}" Margin="0,0,6,0"
+                            AutomationProperties.Name="Select all photos">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="SelectAll" Margin="0,0,4,0"/>
+                            <TextBlock Text="All"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="BulkTagBtn" Click="BulkTagBtn_Click" Margin="0,0,6,0"
+                            AutomationProperties.Name="Tag or label selected photos">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Tag" Margin="0,0,4,0"/>
+                            <TextBlock Text="Tag / Label"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="BulkAlbumBtn" Click="BulkAlbumBtn_Click" Margin="0,0,6,0"
+                            AutomationProperties.Name="Add selected photos to album">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Pictures" Margin="0,0,4,0"/>
+                            <TextBlock Text="Add to Album"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="BulkPeopleBtn" Click="BulkPeopleBtn_Click" Margin="0,0,6,0"
+                            AutomationProperties.Name="Tag people in selected photos">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="People" Margin="0,0,4,0"/>
+                            <TextBlock Text="People"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="BulkPlaceEventBtn" Click="BulkPlaceEventBtn_Click" Margin="0,0,6,0"
+                            AutomationProperties.Name="Set place or event for selected photos">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Map" Margin="0,0,4,0"/>
+                            <TextBlock Text="Place / Event"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="BulkDeleteBtn" Click="BulkDeleteBtn_Click"
+                            Foreground="{StaticResource DangerBrush}" Margin="0,0,6,0"
+                            AutomationProperties.Name="Move selected photos to trash">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Delete" Margin="0,0,4,0"/>
+                            <TextBlock Text="Delete"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding ToggleMultiSelectCommand}"
+                            AutomationProperties.Name="Cancel multi-select">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Cancel" Margin="0,0,4,0"/>
+                            <TextBlock Text="Cancel"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Status bar -->
+        <Border DockPanel.Dock="Bottom" Padding="16,4" Background="{DynamicResource CardBackground}">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Right"
+                           Text="{Binding TotalCount, StringFormat='{}{0:N0} items'}"
+                           Style="{StaticResource CaptionTextStyle}"/>
+                <TextBlock Text="{Binding StatusText}" Style="{StaticResource CaptionTextStyle}"/>
+            </DockPanel>
+        </Border>
+
+        <!-- Grid -->
+        <Grid>
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl x:Name="ThumbGrid"
+                              ItemsSource="{Binding Items}"
+                              ItemTemplate="{StaticResource ThumbnailTemplate}"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" Margin="8"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemContainerStyle>
+                        <Style TargetType="ContentPresenter">
+                            <Setter Property="Width" Value="{Binding DataContext.ThumbnailSize,
+                                RelativeSource={RelativeSource AncestorType=Page}}"/>
+                            <Setter Property="Height" Value="{Binding DataContext.ThumbnailSize,
+                                RelativeSource={RelativeSource AncestorType=Page}}"/>
+                        </Style>
+                    </ItemsControl.ItemContainerStyle>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!-- Loading overlay -->
+            <Border Background="#80000000"
+                    Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <ui:ProgressRing IsActive="{Binding IsLoading}" Width="48" Height="48"/>
+                    <TextBlock Text="Loading…" Foreground="White" Margin="0,12,0,0"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </DockPanel>
+</Page>

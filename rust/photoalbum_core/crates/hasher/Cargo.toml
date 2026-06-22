@@ -1,0 +1,16 @@
+[package]
+name    = "hasher"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+blake3    = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+tempfile  = { workspace = true }
+
+[[bench]]
+name    = "hash_bench"
+harness = false
