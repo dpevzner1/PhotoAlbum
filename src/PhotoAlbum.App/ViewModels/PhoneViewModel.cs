@@ -79,6 +79,26 @@ public sealed partial class PhoneViewModel : ObservableObject
     [ObservableProperty] private double _storageUsedPct;
 
     public ObservableCollection<PhoneItemVm> Items { get; } = [];
+    private readonly List<PhoneItemVm> _allItems = [];
+
+    // iPhone-style media type filter: 0=All, 1=Photos, 2=Videos
+    [ObservableProperty] private int _typeFilterIndex;
+    [ObservableProperty] private int _photoCount;
+    [ObservableProperty] private int _videoCount;
+
+    partial void OnTypeFilterIndexChanged(int value) => ApplyTypeFilter();
+
+    private void ApplyTypeFilter()
+    {
+        Items.Clear();
+        foreach (var vm in _allItems)
+        {
+            if (TypeFilterIndex == 1 && vm.IsVideo) continue;
+            if (TypeFilterIndex == 2 && !vm.IsVideo) continue;
+            Items.Add(vm);
+        }
+        RecountSelection();
+    }
 
     public string TotalSizeText => $"{TotalBytes / 1_073_741_824.0:F2} GB";
     public string DeviceTitle => Device is null ? "No phone connected"
@@ -136,7 +156,9 @@ public sealed partial class PhoneViewModel : ObservableObject
         Device = _watcher.ConnectedDevices.FirstOrDefault();
         OnPropertyChanged(nameof(DeviceTitle));
         Items.Clear();
+        _allItems.Clear();
         TotalCount = 0; TotalBytes = 0; SelectedCount = 0;
+        PhotoCount = 0; VideoCount = 0;
 
         // Windows-side health checks — run on every connect/refresh.
         var diag = _diagnostics.Run();
@@ -188,10 +210,13 @@ public sealed partial class PhoneViewModel : ObservableObject
             foreach (var m in media.OrderByDescending(m => m.DateTaken ?? DateTime.MinValue))
             {
                 // Size+name is a cheap pre-mark; exact dedup happens by hash at backup time.
-                Items.Add(new PhoneItemVm(m));
+                _allItems.Add(new PhoneItemVm(m));
                 TotalBytes += m.SizeBytes;
             }
-            TotalCount = Items.Count;
+            TotalCount = _allItems.Count;
+            PhotoCount = _allItems.Count(i => !i.IsVideo);
+            VideoCount = _allItems.Count(i => i.IsVideo);
+            ApplyTypeFilter();
             OnPropertyChanged(nameof(TotalSizeText));
             // The advertised total can legitimately exceed physical storage:
             // with iCloud "Optimize iPhone Storage", the phone advertises every

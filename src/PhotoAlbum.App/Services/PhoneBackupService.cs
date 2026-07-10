@@ -142,6 +142,10 @@ public sealed class PhoneBackupService : IPhoneBackupService
                     }
 
                     File.Move(partPath, finalPath); // atomic commit
+                    // Preserve capture time on the backed-up file so Explorer
+                    // and library import show the real date, not the copy date.
+                    if (item.DateTaken is { } taken)
+                        { try { File.SetLastWriteTime(finalPath, taken); } catch { } }
                     index.Add(hash);
                     item.Blake3Hash = hash;
                     bytes += item.SizeBytes;

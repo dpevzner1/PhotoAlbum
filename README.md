@@ -143,6 +143,12 @@ All filters are live — results update immediately with no submit button.
 - iPhone **albums cannot be mirrored** (iOS does not expose them over any supported Windows interface) — documented limitation with mitigation in [docs/iphone-backup-feasibility.md](docs/iphone-backup-feasibility.md)
 - Fully API-accessible: `GET /api/v1/phone/status`, `GET /api/v1/phone/media`, `POST /api/v1/phone/backup` (job-based with live counters)
 
+### Video Support
+- Videos are first-class library items — every filter (type, tags, albums, people, places, events, years, rating) applies
+- **In-app playback** with play/pause/seek/mute via the bundled **libvlc** — H.264/HEVC/ProRes decode with **no Windows codec packs required**; system-player fallback retained
+- Phone view: iPhone-style `All / Photos / Videos` filter with counts, and per-video ▶ **preview** (temp download → in-app player, auto-cleaned)
+- **Video telemetry captured on import**: QuickTime creation time, duration, and Apple `ISO6709` GPS (region/place) via MetadataExtractor — feeds Places, year filters, and the detail overlay like photos; backups preserve capture time on the copied file — see [docs/video-support.md](docs/video-support.md)
+
 ### Tagging System
 - Tags have a name, optional color, and optional parent (hierarchical tag tree, schema ready)
 - Tags are created globally and reused across photos

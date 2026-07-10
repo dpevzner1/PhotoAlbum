@@ -83,16 +83,23 @@ public sealed class IndexOrchestrator
                 else
                 {
                     var mediaType = IsVideo(file.Extension) ? MediaType.Video : MediaType.Photo;
-                    var (lat, lon) = mediaType == MediaType.Photo
-                        ? TryReadGps(file.Path)
-                        : (null, null);
+                    // Unified metadata (photos: EXIF; videos: QuickTime creation
+                    // time, duration, Apple ISO6709 GPS). Falls back to the old
+                    // WPF EXIF GPS reader for photo formats MetadataExtractor
+                    // can't open (rare).
+                    var meta = MediaMetadataService.Extract(file.Path);
+                    var (lat, lon) = (meta.Latitude, meta.Longitude);
+                    if (lat is null && mediaType == MediaType.Photo)
+                        (lat, lon) = TryReadGps(file.Path);
                     var item = new MediaItem
                     {
-                        Blake3Hash   = hash,
-                        OriginalName = Path.GetFileName(file.Path),
-                        MediaType    = mediaType,
-                        Latitude     = lat,
-                        Longitude    = lon,
+                        Blake3Hash      = hash,
+                        OriginalName    = Path.GetFileName(file.Path),
+                        MediaType       = mediaType,
+                        CaptureUtc      = meta.CaptureUtc,
+                        DurationSeconds = meta.DurationSeconds,
+                        Latitude        = lat,
+                        Longitude       = lon,
                     };
                     var id = await _mediaRepo.InsertAsync(item, ct);
                     await _thumbs.EnsureThumbnailAsync(id, file.Path, ct: ct);

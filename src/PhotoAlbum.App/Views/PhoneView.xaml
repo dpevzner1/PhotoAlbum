@@ -30,6 +30,15 @@
                             <ui:SymbolIcon Symbol="Video" Width="18" Height="18" Margin="6"
                                            HorizontalAlignment="Right" VerticalAlignment="Bottom"
                                            Visibility="{Binding IsVideo, Converter={StaticResource BoolToVis}}"/>
+                            <!-- Preview-play for videos: downloads a temp copy, then plays in-app -->
+                            <Button Width="34" Height="34" Padding="0"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                                    Background="#90000000" BorderThickness="0" Foreground="White"
+                                    Click="PlayVideoBtn_Click" Tag="{Binding}"
+                                    Visibility="{Binding IsVideo, Converter={StaticResource BoolToVis}}"
+                                    AutomationProperties.Name="{Binding Name, StringFormat='Preview video {0}'}">
+                                <ui:SymbolIcon Symbol="Play" Width="16" Height="16"/>
+                            </Button>
                         </Grid>
                     </Border>
 
@@ -175,8 +184,17 @@
                             AutomationProperties.Name="Clear selection">
                         <TextBlock Text="None"/>
                     </Button>
+                    <TextBlock Text="Type:" VerticalAlignment="Center"
+                               Style="{StaticResource CaptionTextStyle}" Margin="0,0,6,0"/>
+                    <ComboBox SelectedIndex="{Binding TypeFilterIndex, Mode=TwoWay}"
+                              Width="92" Margin="0,0,12,0"
+                              AutomationProperties.Name="Filter by media type">
+                        <ComboBoxItem Content="All"/>
+                        <ComboBoxItem Content="Photos"/>
+                        <ComboBoxItem Content="Videos"/>
+                    </ComboBox>
                     <TextBlock VerticalAlignment="Center" Style="{StaticResource CaptionTextStyle}">
-                        <Run Text="{Binding TotalCount, Mode=OneWay}"/><Run Text=" items · "/><Run Text="{Binding TotalSizeText, Mode=OneWay}"/>
+                        <Run Text="{Binding PhotoCount, Mode=OneWay}"/><Run Text=" photos · "/><Run Text="{Binding VideoCount, Mode=OneWay}"/><Run Text=" videos · "/><Run Text="{Binding TotalSizeText, Mode=OneWay}"/>
                     </TextBlock>
                 </StackPanel>
             </DockPanel>

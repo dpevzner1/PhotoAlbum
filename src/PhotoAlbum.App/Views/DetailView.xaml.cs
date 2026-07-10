@@ -57,6 +57,15 @@ public partial class DetailView : Page
             Dispatcher.BeginInvoke(DispatcherPriority.Input, () => Keyboard.Focus(this));
             await LoadSidebarAsync();
         };
+
+        Unloaded += (_, _) =>
+        {
+            // Release the libvlc player off the UI thread (Stop/Dispose can block).
+            var p = _player; var v = _libVlc;
+            _player = null; _libVlc = null;
+            if (p is not null || v is not null)
+                ThreadPool.QueueUserWorkItem(_ => { try { p?.Stop(); p?.Dispose(); v?.Dispose(); } catch { } });
+        };
     }
 
     // ── Sidebar async loader ─────────────────────────────────────────────────
@@ -509,13 +518,91 @@ public partial class DetailView : Page
 
     // ── Navigation ───────────────────────────────────────────────────────────
 
+    // ── Video playback (bundled libvlc) ───────────────────────────────────────
+
+    private LibVLCSharp.Shared.LibVLC? _libVlc;
+    private LibVLCSharp.Shared.MediaPlayer? _player;
+    private bool _seekDragging;
+
     private void UpdateVideoPanel()
     {
-        if (_vm?.Item?.MediaType == MediaType.Video)
+        StopVideo();
+        if (_vm?.Item?.MediaType != MediaType.Video) return;
+
+        FullImage.Visibility  = Visibility.Collapsed;
+        VideoPanel.Visibility = Visibility.Visible;
+
+        var path = _vm.CurrentFilePath;
+        if (path is null || !File.Exists(path)) return;
+        try
         {
-            FullImage.Visibility  = Visibility.Collapsed;
-            VideoPanel.Visibility = Visibility.Visible;
+            VlcRuntime.Ensure();
+            _libVlc ??= new LibVLCSharp.Shared.LibVLC();
+            _player ??= CreatePlayer();
+            VlcView.MediaPlayer = _player;
+            using var media = new LibVLCSharp.Shared.Media(_libVlc, new Uri(path));
+            _player.Play(media);
+            PlayPauseIcon.Symbol = ModernWpf.Controls.Symbol.Pause;
+            RunLogger.Info("DetailView", "Video playback started", path);
         }
+        catch (Exception ex)
+        {
+            RunLogger.Warn("DetailView", "In-app playback failed — system player still available", ex);
+        }
+    }
+
+    private LibVLCSharp.Shared.MediaPlayer CreatePlayer()
+    {
+        var player = new LibVLCSharp.Shared.MediaPlayer(_libVlc!);
+        player.TimeChanged += (_, e) => Dispatcher.BeginInvoke(() =>
+        {
+            var total = player.Length;
+            if (!_seekDragging && total > 0)
+                VideoSeek.Value = (double)e.Time / total * 1000;
+            VideoTimeText.Text = $"{FormatMs(e.Time)} / {FormatMs(Math.Max(total, 0))}";
+        });
+        player.EndReached += (_, _) => Dispatcher.BeginInvoke(() =>
+            PlayPauseIcon.Symbol = ModernWpf.Controls.Symbol.Play);
+        return player;
+    }
+
+    private void StopVideo()
+    {
+        if (_player is { } p)
+        {
+            // Stop on a worker thread — libvlc Stop can block the UI briefly.
+            ThreadPool.QueueUserWorkItem(_ => { try { p.Stop(); } catch { } });
+        }
+    }
+
+    private void PlayPauseBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (_player is not { } p) return;
+        if (p.IsPlaying) { p.Pause(); PlayPauseIcon.Symbol = ModernWpf.Controls.Symbol.Play; }
+        else             { p.Play();  PlayPauseIcon.Symbol = ModernWpf.Controls.Symbol.Pause; }
+    }
+
+    private void MuteBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (_player is not { } p) return;
+        p.Mute = !p.Mute;
+        MuteIcon.Symbol = p.Mute ? ModernWpf.Controls.Symbol.Mute : ModernWpf.Controls.Symbol.Volume;
+    }
+
+    private void VideoSeek_DragStarted(object sender, System.Windows.Controls.Primitives.DragStartedEventArgs e)
+        => _seekDragging = true;
+
+    private void VideoSeek_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
+    {
+        _seekDragging = false;
+        if (_player is { } p && p.Length > 0)
+            p.Time = (long)(VideoSeek.Value / 1000 * p.Length);
+    }
+
+    private static string FormatMs(long ms)
+    {
+        var t = TimeSpan.FromMilliseconds(Math.Max(ms, 0));
+        return t.TotalHours >= 1 ? $"{(int)t.TotalHours}:{t.Minutes:D2}:{t.Seconds:D2}" : $"{t.Minutes}:{t.Seconds:D2}";
     }
 
     // ── Zoom / pan ───────────────────────────────────────────────────────────

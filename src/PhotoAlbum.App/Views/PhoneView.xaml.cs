@@ -22,6 +22,43 @@ public partial class PhoneView : Page
         }
     }
 
+    private async void PlayVideoBtn_Click(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true; // don't toggle selection underneath
+        if (_vm?.Device is null || sender is not FrameworkElement fe || fe.Tag is not PhoneItemVm item)
+            return;
+
+        // Preview requires pulling the bytes off the phone first (MTP cannot
+        // stream). Confirm for large files.
+        if (item.Item.SizeBytes > 200 * 1024 * 1024 &&
+            MessageBox.Show($"This video is {item.SizeText}. Download a temporary copy to preview it?",
+                "Large video", MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK)
+            return;
+
+        var app = (App)Application.Current;
+        var devices = app.Services!.GetRequiredService<PhotoAlbum.Core.Interfaces.IDeviceService>();
+        var tempDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "PhotoAlbum", "preview");
+        System.IO.Directory.CreateDirectory(tempDir);
+        var tempPath = System.IO.Path.Combine(tempDir, $"{Guid.NewGuid():N}_{item.Name}");
+
+        try
+        {
+            RunLogger.Action("PhoneView", "Video preview download", $"{item.Name} ({item.SizeText})");
+            _vm.StatusText = $"Downloading {item.Name} for preview…";
+            await devices.DownloadItemAsync(_vm.Device.DeviceId, item.Item.ItemId, tempPath);
+            _vm.StatusText = $"Previewing {item.Name}";
+            var win = new VideoPreviewWindow(tempPath, item.Name, deleteOnClose: true)
+                { Owner = Window.GetWindow(this) };
+            win.Show();
+        }
+        catch (Exception ex)
+        {
+            try { System.IO.File.Delete(tempPath); } catch { }
+            _vm.StatusText = $"Preview failed: {ex.Message}";
+            RunLogger.Warn("PhoneView", "Video preview failed", ex);
+        }
+    }
+
     private void Item_Click(object sender, MouseButtonEventArgs e)
     {
         if (_vm is null || sender is not FrameworkElement fe || fe.DataContext is not PhoneItemVm item)

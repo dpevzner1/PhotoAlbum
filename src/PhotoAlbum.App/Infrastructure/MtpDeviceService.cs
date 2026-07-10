@@ -16,7 +16,18 @@ public sealed class MtpDeviceService : IDeviceService
     // the DeviceWatcher's periodic poll disconnecting a device mid-enumeration
     // kills the enumerator with 0x802A0002 ("Shutdown was already called").
     // All device operations are therefore serialized through this gate.
-    private static readonly SemaphoreSlim _gate = new(1, 1);
+    //
+    // The gate is REPLACEABLE: a WPD call can block forever when the cable is
+    // pulled mid-operation. When an operation exceeds its watchdog timeout we
+    // abandon the stuck gate (its holder never returns) and install a fresh
+    // one, so the watcher and future operations self-heal instead of the whole
+    // phone feature freezing until app restart.
+    private static SemaphoreSlim _gate = new(1, 1);
+    private static readonly object _gateSwap = new();
+
+    private const int AcquireTimeoutMs = 30_000;   // waiting for another op to finish
+    private const int QuickOpTimeoutMs = 30_000;   // device list / storage / thumbnail
+    private const int LongOpTimeoutMs  = 15 * 60_000; // full scan / large video download
 
     private static readonly string[] VideoExtensions = [".mov", ".mp4", ".m4v", ".avi", ".3gp"];
 
@@ -28,11 +39,8 @@ public sealed class MtpDeviceService : IDeviceService
     };
 
     public Task<IReadOnlyList<PhoneDevice>> GetConnectedDevicesAsync(CancellationToken ct = default)
-        => Task.Run<IReadOnlyList<PhoneDevice>>(() =>
+        => RunGated<IReadOnlyList<PhoneDevice>>(() =>
         {
-            _gate.Wait(ct);
-            try
-            {
             var result = new List<PhoneDevice>();
             foreach (var device in MediaDevice.GetDevices())
             {
@@ -67,9 +75,7 @@ public sealed class MtpDeviceService : IDeviceService
                 }
             }
             return result;
-            }
-            finally { _gate.Release(); }
-        }, ct);
+        }, QuickOpTimeoutMs, "device detection", ct);
 
     public Task<IReadOnlyList<PhoneMediaItem>> GetMediaItemsAsync(
         string deviceId, IProgress<PhoneScanProgress>? progress = null, CancellationToken ct = default)
@@ -138,7 +144,7 @@ public sealed class MtpDeviceService : IDeviceService
                 $"Duplicate ids skipped: {dupSkipped}. Same-name photo pairs (HEIC+JPG?): {pairNames}. " +
                 $"By type: {string.Join("  ", histogram)}");
             return items;
-        }, ct);
+        }, LongOpTimeoutMs, "photo scan", ct);
 
     public Task<PhoneStorageInfo?> GetStorageInfoAsync(string deviceId, CancellationToken ct = default)
         => WithDevice<PhoneStorageInfo?>(deviceId, device =>
@@ -160,7 +166,7 @@ public sealed class MtpDeviceService : IDeviceService
                 return capacity > 0 ? new PhoneStorageInfo(capacity, free) : null;
             }
             catch { return null; }
-        }, ct);
+        }, QuickOpTimeoutMs, "storage info", ct);
 
     public Task DownloadItemAsync(string deviceId, string itemId, string destinationPath, CancellationToken ct = default)
         => WithDevice<object?>(deviceId, device =>
@@ -169,7 +175,7 @@ public sealed class MtpDeviceService : IDeviceService
             using var fs = File.Create(destinationPath);
             device.DownloadFile(itemId, fs);
             return null;
-        }, ct);
+        }, LongOpTimeoutMs, "photo download", ct);
 
     public Task<byte[]?> GetThumbnailAsync(string deviceId, string itemId, CancellationToken ct = default)
         => WithDevice<byte[]?>(deviceId, device =>
@@ -181,23 +187,61 @@ public sealed class MtpDeviceService : IDeviceService
                 return ms.Length > 0 ? ms.ToArray() : null;
             }
             catch { return null; } // many devices simply don't serve thumbnails
-        }, ct);
+        }, QuickOpTimeoutMs, "thumbnail", ct);
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 
-    private static Task<T> WithDevice<T>(string deviceId, Func<MediaDevice, T> action, CancellationToken ct)
+    private static Task<T> WithDevice<T>(
+        string deviceId, Func<MediaDevice, T> action, int opTimeoutMs, string opName, CancellationToken ct)
+        => RunGated(() =>
+        {
+            var device = MediaDevice.GetDevices().FirstOrDefault(d => d.DeviceId == deviceId)
+                ?? throw new InvalidOperationException("Device is no longer connected.");
+            device.Connect();
+            try { return action(device); }
+            finally { try { device.Disconnect(); } catch { } }
+        }, opTimeoutMs, opName, ct);
+
+    /// <summary>
+    /// Serialize a WPD operation through the gate with a watchdog. If the
+    /// operation hangs (cable pulled mid-COM-call), the stuck gate is abandoned
+    /// and replaced so the rest of the app self-heals; the caller gets a
+    /// TimeoutException with recovery guidance.
+    /// </summary>
+    private static Task<T> RunGated<T>(Func<T> action, int opTimeoutMs, string opName, CancellationToken ct)
         => Task.Run(() =>
         {
-            _gate.Wait(ct);
+            var gate = _gate;
+            if (!gate.Wait(AcquireTimeoutMs, ct))
+                throw new TimeoutException(
+                    $"The phone connection is busy with another operation ({opName} could not start).");
+
+            var releaseNormally = true;
             try
             {
-                var device = MediaDevice.GetDevices().FirstOrDefault(d => d.DeviceId == deviceId)
-                    ?? throw new InvalidOperationException("Device is no longer connected.");
-                device.Connect();
-                try { return action(device); }
-                finally { device.Disconnect(); }
+                // The COM call itself cannot be cancelled — run it on its own
+                // task and watchdog it from here.
+                var work = Task.Run(action, CancellationToken.None);
+                if (!work.Wait(opTimeoutMs))
+                {
+                    releaseNormally = false; // stuck holder keeps the old gate forever
+                    lock (_gateSwap)
+                    {
+                        if (ReferenceEquals(_gate, gate))
+                            _gate = new SemaphoreSlim(1, 1);
+                    }
+                    Services.RunLogger.Warn("MtpDevice",
+                        $"'{opName}' hung for {opTimeoutMs / 1000}s — abandoned the stuck device connection and reset. " +
+                        "Unplug/replug the phone if it stays unresponsive.");
+                    throw new TimeoutException(
+                        $"The phone stopped responding during {opName}. Unplug and replug it, then try again.");
+                }
+                return work.GetAwaiter().GetResult();
             }
-            finally { _gate.Release(); }
+            finally
+            {
+                if (releaseNormally) { try { gate.Release(); } catch { } }
+            }
         }, ct);
 
     private static IEnumerable<string> FindMediaRoots(MediaDevice device)

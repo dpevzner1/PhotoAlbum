@@ -1,0 +1,33 @@
+<Window x:Class="PhotoAlbum.App.Views.VideoPreviewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.modernwpf.com/2019"
+        xmlns:vlc="clr-namespace:LibVLCSharp.WPF;assembly=LibVLCSharp.WPF"
+        Title="Video Preview" Width="960" Height="600"
+        WindowStartupLocation="CenterOwner" Background="#000">
+    <DockPanel>
+        <Border DockPanel.Dock="Bottom" Background="#161616" Padding="10,6">
+            <DockPanel>
+                <Button x:Name="PlayPauseBtn" DockPanel.Dock="Left" Width="40"
+                        Click="PlayPauseBtn_Click"
+                        Background="Transparent" BorderThickness="0" Foreground="White"
+                        AutomationProperties.Name="Play or pause">
+                    <ui:SymbolIcon x:Name="PlayPauseIcon" Symbol="Pause"/>
+                </Button>
+                <TextBlock x:Name="TimeText" DockPanel.Dock="Right" Text="0:00 / 0:00"
+                           Foreground="#CCC" VerticalAlignment="Center" Margin="10,0,4,0" FontSize="12"/>
+                <Button x:Name="MuteBtn" DockPanel.Dock="Right" Click="MuteBtn_Click"
+                        Background="Transparent" BorderThickness="0" Foreground="White"
+                        AutomationProperties.Name="Mute or unmute">
+                    <ui:SymbolIcon x:Name="MuteIcon" Symbol="Volume" Width="16" Height="16"/>
+                </Button>
+                <Slider x:Name="Seek" Minimum="0" Maximum="1000" Margin="10,0"
+                        VerticalAlignment="Center"
+                        Thumb.DragStarted="Seek_DragStarted"
+                        Thumb.DragCompleted="Seek_DragCompleted"
+                        AutomationProperties.Name="Position"/>
+            </DockPanel>
+        </Border>
+        <vlc:VideoView x:Name="VlcView"/>
+    </DockPanel>
+</Window>
