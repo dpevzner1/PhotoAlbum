@@ -69,6 +69,15 @@
                     <StackPanel>
                         <TextBlock Text="{Binding DeviceTitle}" FontSize="{StaticResource TypeSubtitle}" FontWeight="SemiBold"/>
                         <TextBlock Text="{Binding StatusText}" Style="{StaticResource CaptionTextStyle}" Opacity="0.75"/>
+                        <!-- Device storage gauge -->
+                        <StackPanel Orientation="Horizontal" Margin="0,3,0,0"
+                                    Visibility="{Binding HasStorageInfo, Converter={StaticResource BoolToVis}}">
+                            <ProgressBar Width="140" Height="5" Minimum="0" Maximum="100"
+                                         Value="{Binding StorageUsedPct, Mode=OneWay}"
+                                         VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding StorageText}" Margin="8,0,0,0"
+                                       Style="{StaticResource CaptionTextStyle}" Opacity="0.65" FontSize="11"/>
+                        </StackPanel>
                     </StackPanel>
                 </StackPanel>
             </DockPanel>
@@ -91,6 +100,20 @@
                 </StackPanel>
                 <TextBlock VerticalAlignment="Center" TextWrapping="Wrap"
                            Text="The Apple USB driver is not installed — Windows can see the iPhone but cannot browse its photos. Install it to continue."/>
+            </DockPanel>
+        </Border>
+
+        <!-- ── Apple service banner (installed but not running) ─────────── -->
+        <Border DockPanel.Dock="Top" Padding="16,8"
+                Background="{StaticResource WarningBrush}"
+                Visibility="{Binding ServiceStopped, Converter={StaticResource BoolToVis}}">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Command="{Binding StartAppleServiceCommand}"
+                        AutomationProperties.Name="Start the Apple Mobile Device Service">
+                    <TextBlock Text="Start Service"/>
+                </Button>
+                <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,8,0"
+                           Text="The Apple Mobile Device Service is installed but not running. Starting it improves iPhone connectivity (a Windows permission prompt will appear)."/>
             </DockPanel>
         </Border>
 
@@ -178,12 +201,33 @@
                 </ItemsControl>
             </ScrollViewer>
 
+            <!-- Scanning overlay — live metrics + progress so activity is obvious -->
             <Border Background="#60000000"
                     Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}">
-                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <ui:ProgressRing IsActive="{Binding IsLoading}" Width="48" Height="48"/>
-                    <TextBlock Text="Reading device…" Foreground="White" Margin="0,12,0,0" HorizontalAlignment="Center"/>
-                </StackPanel>
+                <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Background="{DynamicResource CardBackground}"
+                        CornerRadius="10" Padding="28,22" MinWidth="360">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <ui:ProgressRing IsActive="{Binding IsLoading}" Width="28" Height="28" Margin="0,0,12,0"/>
+                            <TextBlock Text="Scanning iPhone…" FontSize="{StaticResource TypeSubtitle}"
+                                       FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <TextBlock HorizontalAlignment="Center" Margin="0,12,0,0" FontSize="15">
+                            <Run Text="{Binding ScanCount, Mode=OneWay, StringFormat='{}{0:N0}'}" FontWeight="SemiBold"/>
+                            <Run Text=" items found"/>
+                            <Run Text="{Binding ScanBytesText, Mode=OneWay, StringFormat=' · {0}'}"/>
+                        </TextBlock>
+
+                        <ProgressBar Height="6" Margin="0,14,0,0" Minimum="0" Maximum="100"
+                                     Value="{Binding ScanPct, Mode=OneWay}"
+                                     IsIndeterminate="{Binding ScanIndeterminate}"/>
+
+                        <TextBlock Text="{Binding ScanHintText}" HorizontalAlignment="Center"
+                                   Margin="0,8,0,0" Style="{StaticResource CaptionTextStyle}" Opacity="0.6"/>
+                    </StackPanel>
+                </Border>
             </Border>
         </Grid>
     </DockPanel>

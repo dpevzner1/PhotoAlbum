@@ -134,6 +134,15 @@ All filters are live — results update immediately with no submit button.
 - Cancellable mid-operation via `CancellationTokenSource`
 - Interrupted clones are designed to resume (idempotent copy engine)
 
+### iPhone Connect & Backup (Phone view)
+- Dynamic **Phone** nav item appears when an iPhone is connected over USB (MTP/PTP), disappears on disconnect
+- Enumerates the camera roll — both the classic `DCIM` layout and the iOS 17+ date-folder layout — with a live scanning overlay (item/GB counters, progress bar vs last-scan estimate) and a device storage gauge
+- Back up **selected photos or everything** to a user-chosen folder: journaled, resumable, per-file BLAKE3-verified, duplicate-skipping (per-device hash index), retry with backoff, and reconnect-wait on connection jitter — see [docs/phone-backup-resilience.md](docs/phone-backup-resilience.md)
+- Automatic connect-time diagnostics: Apple USB driver detection with one-click **winget bootstrap from Apple's servers** (license-compliant — never bundled), Apple service health with elevated start, guided unlock/Trust states — see [docs/apple-driver-install.md](docs/apple-driver-install.md) and [docs/phone-connectivity-remediation.md](docs/phone-connectivity-remediation.md)
+- Honest iCloud semantics: totals labeled as **library size**; when "Optimize iPhone Storage" makes the library exceed device capacity the UI explains why, matching iMazing/CopyTrans documented behaviour — validation and DevOps grade in [docs/phone-feature-validation.md](docs/phone-feature-validation.md)
+- iPhone **albums cannot be mirrored** (iOS does not expose them over any supported Windows interface) — documented limitation with mitigation in [docs/iphone-backup-feasibility.md](docs/iphone-backup-feasibility.md)
+- Fully API-accessible: `GET /api/v1/phone/status`, `GET /api/v1/phone/media`, `POST /api/v1/phone/backup` (job-based with live counters)
+
 ### Tagging System
 - Tags have a name, optional color, and optional parent (hierarchical tag tree, schema ready)
 - Tags are created globally and reused across photos

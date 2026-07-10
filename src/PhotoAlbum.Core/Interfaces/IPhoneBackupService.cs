@@ -2,7 +2,12 @@ using PhotoAlbum.Core.Domain;
 
 namespace PhotoAlbum.Core.Interfaces;
 
-public sealed record PhoneBackupProgress(int Done, int Total, string CurrentFile, long BytesCopied);
+public sealed record PhoneBackupProgress(
+    int Done, int Total, string CurrentFile, long BytesCopied,
+    int Copied = 0, int Skipped = 0, int Failed = 0)
+{
+    public int Remaining => Math.Max(0, Total - Done);
+}
 
 public sealed record PhoneBackupResult(
     int Copied, int Skipped, int Failed, long TotalBytes, string Destination, IReadOnlyList<string> Errors);

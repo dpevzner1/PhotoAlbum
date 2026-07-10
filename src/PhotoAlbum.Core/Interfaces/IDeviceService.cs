@@ -2,6 +2,15 @@ using PhotoAlbum.Core.Domain;
 
 namespace PhotoAlbum.Core.Interfaces;
 
+/// <summary>Live enumeration progress: items found so far and their byte total.</summary>
+public sealed record PhoneScanProgress(int Count, long Bytes);
+
+/// <summary>Device storage totals (from MTP storage info).</summary>
+public sealed record PhoneStorageInfo(ulong CapacityBytes, ulong FreeBytes)
+{
+    public ulong UsedBytes => CapacityBytes > FreeBytes ? CapacityBytes - FreeBytes : 0;
+}
+
 /// <summary>
 /// Read-only access to a phone connected over MTP/PTP (WPD).
 /// Implemented by MtpDeviceService in the App layer; mockable for tests.
@@ -17,7 +26,10 @@ public interface IDeviceService
     /// Albums are NOT available over MTP — folder structure only (see docs/iphone-backup-feasibility.md).
     /// </summary>
     Task<IReadOnlyList<PhoneMediaItem>> GetMediaItemsAsync(
-        string deviceId, IProgress<int>? progress = null, CancellationToken ct = default);
+        string deviceId, IProgress<PhoneScanProgress>? progress = null, CancellationToken ct = default);
+
+    /// <summary>Total/free storage on the device; null when the device won't report it.</summary>
+    Task<PhoneStorageInfo?> GetStorageInfoAsync(string deviceId, CancellationToken ct = default);
 
     /// <summary>Download one item's bytes to <paramref name="destinationPath"/> (caller picks a temp/.part path).</summary>
     Task DownloadItemAsync(

@@ -45,8 +45,12 @@ public sealed partial class PhoneViewModel : ObservableObject
     private readonly IPhoneBackupService _backup;
     private readonly DeviceWatcher _watcher;
     private readonly AppleDriverService _appleDriver;
+    private readonly PhoneDiagnosticsService _diagnostics;
+    private readonly IUserSettingsRepository _userSettings;
     private CancellationTokenSource? _loadCts;
     private CancellationTokenSource? _backupCts;
+
+    private const string LastCountKeyPrefix = "phone.last_scan_count.";
 
     [ObservableProperty] private PhoneDevice? _device;
     [ObservableProperty] private bool _isLoading;
@@ -60,6 +64,19 @@ public sealed partial class PhoneViewModel : ObservableObject
     [ObservableProperty] private bool _hideBackedUp;
     [ObservableProperty] private bool _driverMissing;
     [ObservableProperty] private bool _driverInstalling;
+    [ObservableProperty] private bool _serviceStopped;
+
+    // Live scan metrics (loading overlay)
+    [ObservableProperty] private int _scanCount;
+    [ObservableProperty] private string _scanBytesText = "";
+    [ObservableProperty] private double _scanPct;            // 0..100, vs last-scan estimate
+    [ObservableProperty] private bool _scanIndeterminate = true;
+    [ObservableProperty] private string _scanHintText = "";
+
+    // Device storage gauge (header)
+    [ObservableProperty] private bool _hasStorageInfo;
+    [ObservableProperty] private string _storageText = "";
+    [ObservableProperty] private double _storageUsedPct;
 
     public ObservableCollection<PhoneItemVm> Items { get; } = [];
 
@@ -68,12 +85,26 @@ public sealed partial class PhoneViewModel : ObservableObject
         : $"{Device.FriendlyName}{(string.IsNullOrEmpty(Device.Model) ? "" : $" ({Device.Model})")}";
 
     public PhoneViewModel(IDeviceService devices, IPhoneBackupService backup, DeviceWatcher watcher,
-        AppleDriverService appleDriver)
+        AppleDriverService appleDriver, PhoneDiagnosticsService diagnostics,
+        IUserSettingsRepository userSettings)
     {
-        _devices     = devices;
-        _backup      = backup;
-        _watcher     = watcher;
-        _appleDriver = appleDriver;
+        _devices      = devices;
+        _backup       = backup;
+        _watcher      = watcher;
+        _appleDriver  = appleDriver;
+        _diagnostics  = diagnostics;
+        _userSettings = userSettings;
+    }
+
+    [RelayCommand]
+    private async Task StartAppleServiceAsync()
+    {
+        StatusText = "Starting the Apple Mobile Device Service (accept the Windows permission prompt)…";
+        var ok = await _diagnostics.TryStartServiceElevatedAsync();
+        ServiceStopped = !ok && _diagnostics.IsServiceInstalled();
+        StatusText = ok
+            ? "Apple service started. Press Refresh."
+            : "Service not started (prompt declined or failed). Photo browsing may still work — try Refresh, or reboot to auto-start it.";
     }
 
     [RelayCommand]
@@ -106,19 +137,53 @@ public sealed partial class PhoneViewModel : ObservableObject
         OnPropertyChanged(nameof(DeviceTitle));
         Items.Clear();
         TotalCount = 0; TotalBytes = 0; SelectedCount = 0;
-        DriverMissing = !_appleDriver.IsDriverPresent();
+
+        // Windows-side health checks — run on every connect/refresh.
+        var diag = _diagnostics.Run();
+        DriverMissing  = !diag.DriverPresent;
+        ServiceStopped = diag.ServiceInstalled && !diag.ServiceRunning;
 
         if (Device is null) { StatusText = "Connect an iPhone via USB, unlock it, and tap “Trust This Computer”."; return; }
 
         IsLoading = true;
         StatusText = "Reading photos from device…";
+        ScanCount = 0; ScanBytesText = ""; ScanPct = 0;
         try
         {
             Destination = await _backup.GetSavedDestinationAsync(Device, ct);
             var index = await _backup.GetBackupIndexAsync(Device, ct);
 
-            var progress = new Progress<int>(n => StatusText = $"Reading photos from device… {n} found");
+            // Device storage gauge — quick query before the scan starts.
+            var storage = await _devices.GetStorageInfoAsync(Device.DeviceId, ct);
+            if (storage is { CapacityBytes: > 0 })
+            {
+                HasStorageInfo = true;
+                StorageText = $"{Gb(storage.UsedBytes)} used of {Gb(storage.CapacityBytes)}";
+                StorageUsedPct = storage.UsedBytes * 100.0 / storage.CapacityBytes;
+            }
+            else HasStorageInfo = false;
+
+            // Last scan's count = estimate for a determinate progress bar.
+            var estRaw = await _userSettings.GetAsync(LastCountKeyPrefix + Device.StableKey, ct);
+            int estimate = int.TryParse(estRaw, out var e) && e > 0 ? e : 0;
+            ScanIndeterminate = estimate == 0;
+            ScanHintText = estimate > 0
+                ? $"~{estimate:N0} items expected (from last scan)"
+                : "First scan of this device — counting…";
+
+            var progress = new Progress<PhoneScanProgress>(p =>
+            {
+                ScanCount = p.Count;
+                ScanBytesText = p.Bytes >= 1_073_741_824
+                    ? $"{p.Bytes / 1_073_741_824.0:F2} GB" : $"{p.Bytes / 1_048_576.0:F0} MB";
+                if (estimate > 0)
+                    ScanPct = Math.Min(99.0, p.Count * 100.0 / estimate);
+                StatusText = $"Reading photos from device… {p.Count:N0} found · {ScanBytesText}";
+            });
             var media = await _devices.GetMediaItemsAsync(Device.DeviceId, progress, ct);
+
+            // Remember this scan's count for next time's progress estimate.
+            await _userSettings.SetAsync(LastCountKeyPrefix + Device.StableKey, media.Count.ToString(), ct);
 
             foreach (var m in media.OrderByDescending(m => m.DateTaken ?? DateTime.MinValue))
             {
@@ -128,10 +193,20 @@ public sealed partial class PhoneViewModel : ObservableObject
             }
             TotalCount = Items.Count;
             OnPropertyChanged(nameof(TotalSizeText));
+            // The advertised total can legitimately exceed physical storage:
+            // with iCloud "Optimize iPhone Storage", the phone advertises every
+            // asset at its full ORIGINAL size and streams from iCloud on
+            // transfer. Label honestly instead of confusing the user.
+            bool exceedsDevice = storage is { CapacityBytes: > 0 } &&
+                                 (ulong)TotalBytes > storage.CapacityBytes;
             StatusText = TotalCount == 0
                 ? "No photos visible. Unlock the iPhone, tap “Trust This Computer” on it, keep it unlocked, then press Refresh. " +
                   "If it still shows nothing, install the Apple Devices app (or iTunes) so the Apple USB driver completes."
-                : $"{TotalCount:N0} items · {TotalSizeText} on device · {index.Count:N0} previously backed up";
+                : $"{TotalCount:N0} items · {TotalSizeText} library size · {index.Count:N0} previously backed up" +
+                  (exceedsDevice
+                      ? "  —  larger than device storage: iCloud-optimized originals are included and download from iCloud during backup. " +
+                        "For a faster full backup: iPhone Settings → Photos → Download and Keep Originals."
+                      : "");
 
             _ = LoadThumbnailsAsync(ct); // fire-and-forget, cancelled on reload
         }
@@ -143,6 +218,8 @@ public sealed partial class PhoneViewModel : ObservableObject
         }
         finally { IsLoading = false; }
     }
+
+    private static string Gb(ulong bytes) => $"{bytes / 1_073_741_824.0:F1} GB";
 
     private async Task LoadThumbnailsAsync(CancellationToken ct)
     {
@@ -209,7 +286,8 @@ public sealed partial class PhoneViewModel : ObservableObject
             {
                 BackupProgress = p.Total == 0 ? 0 : (double)p.Done / p.Total;
                 StatusText = p.CurrentFile.Length > 0
-                    ? $"Backing up {p.Done + 1}/{p.Total}: {p.CurrentFile}"
+                    ? $"Backing up {p.Done + 1}/{p.Total}: {p.CurrentFile}  ·  " +
+                      $"{p.Copied} copied · {p.Skipped} skipped · {p.Failed} failed · {p.Remaining} remaining"
                     : $"Finishing…";
             });
             var result = await _backup.BackupAsync(Device!, items, Destination, progress, _backupCts.Token);

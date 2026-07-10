@@ -160,6 +160,7 @@ public partial class App : Application
                 services.AddSingleton<IPhoneBackupService, PhoneBackupService>();
                 services.AddSingleton<DeviceWatcher>();
                 services.AddSingleton<AppleDriverService>();
+                services.AddSingleton<PhoneDiagnosticsService>();
 
                 // ViewModels
                 services.AddTransient<ViewModels.LibraryViewModel>();

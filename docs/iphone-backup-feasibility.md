@@ -88,6 +88,9 @@ PhotoAlbum.App/
 
 ## See also
 
+- [phone-feature-validation.md](phone-feature-validation.md) — industry comparison (iMazing/CopyTrans) + DevOps engine grade: **correct path forward**
+- [phone-backup-resilience.md](phone-backup-resilience.md) — journaled resume / interrupt protection design
+- [phone-connectivity-remediation.md](phone-connectivity-remediation.md) — real-device bring-up log and troubleshooting playbook
 - [apple-driver-install.md](apple-driver-install.md) — winget commands and manual install steps for the Apple USB driver
 
 ## Sources

@@ -689,7 +689,8 @@ public static class LocalApiHost
                 });
             })
             .WithName("GetPhoneMedia")
-            .WithSummary("Enumerate photos/videos on a connected phone (DCIM tree; iPhone albums are not exposed over MTP).");
+            .WithSummary("Enumerate photos/videos on a connected phone (classic DCIM and iOS 17+ date-folder layouts; iPhone albums are not exposed over MTP). " +
+                         "totalBytes is the LIBRARY size: with iCloud 'Optimize iPhone Storage' it can exceed device capacity because originals are advertised at full size and stream from iCloud during backup.");
 
         api.MapPost("/phone/backup", (PhoneBackupBody body, IDeviceService devices, IPhoneBackupService backup) =>
             {
@@ -712,7 +713,11 @@ public static class LocalApiHost
                             ? await backup.GetSavedDestinationAsync(device)
                             : body.Destination!;
                         var progress = new Progress<PhoneBackupProgress>(p =>
-                            { state.Done = p.Done; state.Total = p.Total; });
+                        {
+                            state.Done = p.Done; state.Total = p.Total;
+                            state.Copied = p.Copied; state.Skipped = p.Skipped;
+                            state.Failed = p.Failed; state.Remaining = p.Remaining;
+                        });
                         var result = await backup.BackupAsync(device, wanted, dest, progress);
                         state.Result = result;
                         state.Status = result.Failed > 0 ? "completed_with_errors" : "completed";
@@ -745,6 +750,10 @@ public static class LocalApiHost
         public string Status { get; set; } = "";
         public int Done { get; set; }
         public int Total { get; set; }
+        public int Copied { get; set; }
+        public int Skipped { get; set; }
+        public int Failed { get; set; }
+        public int Remaining { get; set; }
         public string? Error { get; set; }
         public PhoneBackupResult? Result { get; set; }
     }
