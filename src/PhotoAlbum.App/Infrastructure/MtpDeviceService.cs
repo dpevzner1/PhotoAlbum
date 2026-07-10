@@ -29,13 +29,14 @@ public sealed class MtpDeviceService : IDeviceService
     private const int QuickOpTimeoutMs = 30_000;   // device list / storage / thumbnail
     private const int LongOpTimeoutMs  = 15 * 60_000; // full scan / large video download
 
-    private static readonly string[] VideoExtensions = [".mov", ".mp4", ".m4v", ".avi", ".3gp"];
+    private static readonly string[] VideoExtensions = [".mov", ".mp4", ".m4v", ".avi", ".3gp", ".mkv", ".wmv"];
 
     // Only surface real media — storage roots can contain sidecar/other files.
+    // Kept in sync with the Rust scanner's SUPPORTED_EXTENSIONS.
     private static readonly HashSet<string> MediaExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".jpg", ".jpeg", ".heic", ".heif", ".png", ".dng", ".gif", ".webp", ".bmp", ".tif", ".tiff",
-        ".mov", ".mp4", ".m4v", ".avi", ".3gp",
+        ".mov", ".mp4", ".m4v", ".avi", ".3gp", ".mkv", ".wmv",
     };
 
     public Task<IReadOnlyList<PhoneDevice>> GetConnectedDevicesAsync(CancellationToken ct = default)

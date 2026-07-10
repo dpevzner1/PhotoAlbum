@@ -20,7 +20,10 @@ pub struct ScannedFile {
 }
 
 const SUPPORTED_EXTENSIONS: &[&str] = &[
-    "jpg", "jpeg", "png", "heic", "heif", "mov", "mp4", "m4v",
+    // photos
+    "jpg", "jpeg", "png", "heic", "heif", "dng", "gif", "webp", "bmp", "tif", "tiff",
+    // videos (must stay in sync with IndexOrchestrator::IsVideo on the C# side)
+    "mov", "mp4", "m4v", "avi", "3gp", "mkv", "wmv",
 ];
 
 /// Recursively scan `root` and return all supported media files.

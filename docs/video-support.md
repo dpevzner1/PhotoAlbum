@@ -5,6 +5,13 @@ How video is handled across the app — designed against what already existed
 
 ## Inventory & filters
 
+**Regular folder imports fully included:** the Rust scanner accepts
+`jpg jpeg png heic heif dng gif webp bmp tif tiff` (photos) and
+`mov mp4 m4v avi 3gp mkv wmv` (videos); the importer types every video
+extension as `MediaType.Video` (kept in sync with the scanner list), so
+folder-imported videos get the Video type, telemetry extraction, and all
+filters exactly like phone-backed-up ones.
+
 - **Library view**: the existing `Type: All / Photos / Videos` filter applies,
   and every other filter (tags, albums, people, places, events, years,
   favorites, rating) works identically for videos — they share the MediaItem

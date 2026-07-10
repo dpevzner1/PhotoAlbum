@@ -125,8 +125,9 @@ public sealed class IndexOrchestrator
             state.Added, state.Skipped, state.Failed);
     }
 
+    // Must stay in sync with the Rust scanner's SUPPORTED_EXTENSIONS video set.
     private static bool IsVideo(string ext) =>
-        ext is "mp4" or "mov" or "m4v";
+        ext is "mp4" or "mov" or "m4v" or "avi" or "3gp" or "mkv" or "wmv";
 
     /// <summary>
     /// Try to extract GPS coordinates from EXIF metadata using WPF BitmapMetadata.
