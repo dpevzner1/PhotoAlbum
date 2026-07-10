@@ -22,6 +22,8 @@ public static class LocalApiHost
         IPlaceRepository placeRepo,
         IEventRepository eventRepo,
         IHiddenContentManager hidden = null,
+        IDeviceService deviceService = null,
+        IPhoneBackupService phoneBackup = null,
         CancellationToken ct = default)
     {
         var builder = WebApplication.CreateBuilder();
@@ -41,6 +43,10 @@ public static class LocalApiHost
         builder.Services.AddSingleton(eventRepo);
         if (hidden is not null)
             builder.Services.AddSingleton(hidden);
+        if (deviceService is not null)
+            builder.Services.AddSingleton(deviceService);
+        if (phoneBackup is not null)
+            builder.Services.AddSingleton(phoneBackup);
 
         // Bind only on loopback — never expose on LAN
         builder.Services.Configure<Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions>(k =>
@@ -657,6 +663,90 @@ public static class LocalApiHost
             })
             .WithName("UnhideTag")
             .WithSummary("Remove a tag from the hidden vault.");
+
+        // ── Phone (connected device) ─────────────────────────────────────────
+        api.MapGet("/phone/status", async (IDeviceService devices) =>
+            {
+                var connected = await devices.GetConnectedDevicesAsync();
+                return Results.Ok(new
+                {
+                    connected = connected.Count > 0,
+                    devices = connected.Select(d => new
+                        { d.DeviceId, d.FriendlyName, d.Manufacturer, d.Model, d.SerialNumber }),
+                });
+            })
+            .WithName("GetPhoneStatus")
+            .WithSummary("Connected phone(s) over USB/MTP. Requires the device to be unlocked and trusted.");
+
+        api.MapGet("/phone/media", async (IDeviceService devices, string deviceId) =>
+            {
+                var items = await devices.GetMediaItemsAsync(deviceId);
+                return Results.Ok(new
+                {
+                    total = items.Count,
+                    totalBytes = items.Sum(i => i.SizeBytes),
+                    items = items.Select(i => new { i.ItemId, i.Name, i.Folder, i.SizeBytes, i.DateTaken, i.IsVideo }),
+                });
+            })
+            .WithName("GetPhoneMedia")
+            .WithSummary("Enumerate photos/videos on a connected phone (DCIM tree; iPhone albums are not exposed over MTP).");
+
+        api.MapPost("/phone/backup", (PhoneBackupBody body, IDeviceService devices, IPhoneBackupService backup) =>
+            {
+                var jobId = Guid.NewGuid().ToString("N")[..12];
+                var state = new PhoneBackupJob { JobId = jobId, Status = "running" };
+                _backupJobs[jobId] = state;
+
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var device = (await devices.GetConnectedDevicesAsync())
+                            .FirstOrDefault(d => d.DeviceId == body.DeviceId)
+                            ?? throw new InvalidOperationException("Device not connected.");
+                        var all = await devices.GetMediaItemsAsync(body.DeviceId);
+                        var wanted = body.ItemIds is { Count: > 0 }
+                            ? all.Where(i => body.ItemIds.Contains(i.ItemId)).ToList()
+                            : all.ToList();
+                        var dest = string.IsNullOrWhiteSpace(body.Destination)
+                            ? await backup.GetSavedDestinationAsync(device)
+                            : body.Destination!;
+                        var progress = new Progress<PhoneBackupProgress>(p =>
+                            { state.Done = p.Done; state.Total = p.Total; });
+                        var result = await backup.BackupAsync(device, wanted, dest, progress);
+                        state.Result = result;
+                        state.Status = result.Failed > 0 ? "completed_with_errors" : "completed";
+                    }
+                    catch (Exception ex)
+                    {
+                        state.Status = "failed";
+                        state.Error = ex.Message;
+                    }
+                });
+
+                return Results.Accepted($"/api/v1/phone/backup/{jobId}", new { jobId });
+            })
+            .WithName("StartPhoneBackup")
+            .WithSummary("Start a verified backup job. Body: { deviceId, itemIds?: string[] (all when omitted), destination?: string }. Returns a job id.");
+
+        api.MapGet("/phone/backup/{jobId}", (string jobId) =>
+                _backupJobs.TryGetValue(jobId, out var job)
+                    ? Results.Ok(job)
+                    : Results.NotFound(new { error = "Unknown job id." }))
+            .WithName("GetPhoneBackupJob")
+            .WithSummary("Progress/result of a backup job started via POST /phone/backup.");
+    }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, PhoneBackupJob> _backupJobs = new();
+
+    private sealed class PhoneBackupJob
+    {
+        public string JobId { get; set; } = "";
+        public string Status { get; set; } = "";
+        public int Done { get; set; }
+        public int Total { get; set; }
+        public string? Error { get; set; }
+        public PhoneBackupResult? Result { get; set; }
     }
 
     // ── Query helpers ──────────────────────────────────────────────────────────
@@ -689,6 +779,7 @@ public static class LocalApiHost
     private record AlbumBody(string Name);
     private record TagBody(string Name);
     private record PersonBody(string Name);
+    private record PhoneBackupBody(string DeviceId, List<string>? ItemIds, string? Destination);
     private record PlaceBody(string Name, double? Latitude, double? Longitude);
     private record EventBody(string Name, string? Description, DateTime? StartUtc, DateTime? EndUtc);
 }

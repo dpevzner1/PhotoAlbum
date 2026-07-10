@@ -155,9 +155,16 @@ public partial class App : Application
                 services.AddSingleton<PHashService>();
                 services.AddSingleton<DuplicateFinderService>();
 
+                // Phone connect & backup
+                services.AddSingleton<IDeviceService, MtpDeviceService>();
+                services.AddSingleton<IPhoneBackupService, PhoneBackupService>();
+                services.AddSingleton<DeviceWatcher>();
+                services.AddSingleton<AppleDriverService>();
+
                 // ViewModels
                 services.AddTransient<ViewModels.LibraryViewModel>();
                 services.AddTransient<ViewModels.DetailViewModel>();
+                services.AddTransient<ViewModels.PhoneViewModel>();
 
                 // Windows
                 services.AddTransient<MainWindow>();
@@ -250,7 +257,9 @@ public partial class App : Application
                 sp.GetRequiredService<IPersonRepository>(),
                 sp.GetRequiredService<IPlaceRepository>(),
                 sp.GetRequiredService<IEventRepository>(),
-                hidden);
+                hidden,
+                sp.GetRequiredService<IDeviceService>(),
+                sp.GetRequiredService<IPhoneBackupService>());
             RunLogger.Info("App", "Local REST API started on http://127.0.0.1:5150");
         }
         catch (Exception ex)

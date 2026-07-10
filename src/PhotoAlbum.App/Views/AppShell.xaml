@@ -119,6 +119,19 @@
                                        VerticalAlignment="Center"/>
                         </StackPanel>
                     </RadioButton>
+
+                    <!-- Phone: appears only while a phone is connected (DeviceWatcher) -->
+                    <RadioButton x:Name="PhoneBtn" Style="{StaticResource NavItemStyle}"
+                                 GroupName="NavGroup" Tag="Phone"
+                                 Checked="NavBtn_Checked"
+                                 Visibility="Collapsed"
+                                 AutomationProperties.Name="Phone">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="CellPhone" Width="20" Height="20"/>
+                            <TextBlock x:Name="PhoneLabel" Text="Phone" Margin="12,0,0,0"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </RadioButton>
                 </StackPanel>
 
                 <!-- Bottom nav: Settings -->

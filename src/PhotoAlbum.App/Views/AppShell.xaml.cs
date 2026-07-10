@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+using PhotoAlbum.App.Services;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
@@ -9,11 +11,37 @@ public partial class AppShell : UserControl
 {
     private bool _navExpanded = true;
     private bool _navigating;
+    private DeviceWatcher? _deviceWatcher;
 
     public AppShell()
     {
         InitializeComponent();
-        Loaded += (_, _) => Navigate("Library");
+        Loaded += (_, _) =>
+        {
+            Navigate("Library");
+            WireDeviceWatcher();
+        };
+    }
+
+    private void WireDeviceWatcher()
+    {
+        if (_deviceWatcher is not null) return;
+        if (Application.Current is not App app || app.Services is not { } sp) return;
+
+        _deviceWatcher = sp.GetService<DeviceWatcher>();
+        if (_deviceWatcher is null) return;
+
+        _deviceWatcher.DevicesChanged += devices =>
+        {
+            var connected = devices.Count > 0;
+            PhoneBtn.Visibility = connected ? Visibility.Visible : Visibility.Collapsed;
+            // If the user is on the Phone page and the phone goes away, bounce to Library.
+            if (!connected && PhoneBtn.IsChecked == true)
+                Navigate("Library");
+        };
+
+        if (Window.GetWindow(this) is { } window)
+            _deviceWatcher.Attach(window);
     }
 
     public void ShowHeicWarning() => HeicWarningBanner.Visibility = Visibility.Visible;
@@ -36,6 +64,7 @@ public partial class AppShell : UserControl
         CloneLabel.Visibility = labelVis;
         TrashLabel.Visibility = labelVis;
         HiddenLabel.Visibility = labelVis;
+        PhoneLabel.Visibility = labelVis;
         SettingsLabel.Visibility = labelVis;
     }
 
@@ -64,7 +93,7 @@ public partial class AppShell : UserControl
         {
             // Sync radio button selection without re-triggering navigation
             var navButtons = new RadioButton[] { LibraryBtn, AlbumsBtn, PeopleBtn, PlacesBtn,
-                EventsBtn, CloneBtn, TrashBtn, HiddenBtn };
+                EventsBtn, CloneBtn, TrashBtn, HiddenBtn, PhoneBtn };
             foreach (var b in navButtons)
                 b.IsChecked = b.Tag as string == destination;
         }
@@ -80,6 +109,7 @@ public partial class AppShell : UserControl
             "Clone"    => new CloneView(),
             "Trash"    => new TrashView(),
             "Hidden"   => new HiddenView(),
+            "Phone"    => new PhoneView(),
             "Settings" => new SettingsView(),
             _          => null,
         };

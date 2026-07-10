@@ -1,0 +1,190 @@
+<Page x:Class="PhotoAlbum.App.Views.PhoneView"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.modernwpf.com/2019"
+      xmlns:vm="clr-namespace:PhotoAlbum.App.ViewModels"
+      Title="Phone"
+      Background="{DynamicResource ContentBackground}">
+
+    <Page.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
+        <DataTemplate x:Key="PhoneItemTemplate" DataType="{x:Type vm:PhoneItemVm}">
+            <Border Style="{StaticResource CardStyle}" Margin="4" Width="160"
+                    Cursor="Hand" MouseLeftButtonUp="Item_Click"
+                    AutomationProperties.Name="{Binding Name}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="110"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Thumbnail (or placeholder icon) -->
+                    <Border Grid.Row="0" CornerRadius="6" ClipToBounds="True"
+                            Background="{DynamicResource NavHoverBrush}">
+                        <Grid>
+                            <ui:SymbolIcon Symbol="Camera" Width="28" Height="28"
+                                           Opacity="0.35" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"/>
+                            <ui:SymbolIcon Symbol="Video" Width="18" Height="18" Margin="6"
+                                           HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                           Visibility="{Binding IsVideo, Converter={StaticResource BoolToVis}}"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- Selection check -->
+                    <Grid Grid.Row="0" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6">
+                        <Ellipse Width="22" Height="22" Fill="#80000000" Stroke="White" StrokeThickness="2"/>
+                        <Ellipse Width="22" Height="22" Fill="{StaticResource AccentBrush}"
+                                 Visibility="{Binding IsSelected, Converter={StaticResource BoolToVis}}"/>
+                        <ui:SymbolIcon Symbol="Accept" Foreground="White" Width="12" Height="12"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVis}}"/>
+                    </Grid>
+
+                    <TextBlock Grid.Row="1" Text="{Binding Name}" Margin="0,4,0,0"
+                               Style="{StaticResource CaptionTextStyle}" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Grid.Row="2" Style="{StaticResource CaptionTextStyle}" Opacity="0.65" FontSize="10">
+                        <Run Text="{Binding SizeText, Mode=OneWay}"/><Run Text="  ·  "/><Run Text="{Binding DateText, Mode=OneWay}"/>
+                    </TextBlock>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </Page.Resources>
+
+    <DockPanel>
+        <!-- ── Header: device + refresh ─────────────────────────────────── -->
+        <Border DockPanel.Dock="Top" Padding="16,12" Background="{DynamicResource CardBackground}">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Command="{Binding LoadCommand}"
+                        AutomationProperties.Name="Refresh device">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Refresh" Margin="0,0,6,0"/>
+                        <TextBlock Text="Refresh"/>
+                    </StackPanel>
+                </Button>
+                <StackPanel Orientation="Horizontal">
+                    <ui:SymbolIcon Symbol="CellPhone" Width="24" Height="24" Margin="0,0,10,0"/>
+                    <StackPanel>
+                        <TextBlock Text="{Binding DeviceTitle}" FontSize="{StaticResource TypeSubtitle}" FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding StatusText}" Style="{StaticResource CaptionTextStyle}" Opacity="0.75"/>
+                    </StackPanel>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- ── Apple driver banner (shown when the driver is missing) ───── -->
+        <Border DockPanel.Dock="Top" Padding="16,8"
+                Background="{StaticResource WarningBrush}"
+                Visibility="{Binding DriverMissing, Converter={StaticResource BoolToVis}}">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Command="{Binding InstallDriverCommand}" Margin="0,0,8,0"
+                            AutomationProperties.Name="Install Apple driver automatically">
+                        <TextBlock Text="Install Driver (from Apple)"/>
+                    </Button>
+                    <Button Command="{Binding OpenDriverStorePageCommand}"
+                            AutomationProperties.Name="Open Microsoft Store page for Apple Devices">
+                        <TextBlock Text="Open Store Page"/>
+                    </Button>
+                </StackPanel>
+                <TextBlock VerticalAlignment="Center" TextWrapping="Wrap"
+                           Text="The Apple USB driver is not installed — Windows can see the iPhone but cannot browse its photos. Install it to continue."/>
+            </DockPanel>
+        </Border>
+
+        <!-- ── Destination row ──────────────────────────────────────────── -->
+        <Border DockPanel.Dock="Top" Padding="16,8" Background="{DynamicResource ContentBackground}"
+                BorderBrush="{DynamicResource SeparatorBrush}" BorderThickness="0,0,0,1">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Left" Text="Back up to:" VerticalAlignment="Center"
+                           Style="{StaticResource CaptionTextStyle}" Margin="0,0,8,0"/>
+                <Button DockPanel.Dock="Right" x:Name="BrowseDestBtn" Click="BrowseDestBtn_Click"
+                        Margin="8,0,0,0" AutomationProperties.Name="Choose backup folder">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Folder" Margin="0,0,4,0"/>
+                        <TextBlock Text="Browse…"/>
+                    </StackPanel>
+                </Button>
+                <TextBox Text="{Binding Destination, UpdateSourceTrigger=PropertyChanged}"
+                         VerticalAlignment="Center"
+                         AutomationProperties.Name="Backup destination folder"/>
+            </DockPanel>
+        </Border>
+
+        <!-- ── Actions ──────────────────────────────────────────────────── -->
+        <Border DockPanel.Dock="Top" Padding="16,8" Background="{DynamicResource ContentBackground}"
+                BorderBrush="{DynamicResource SeparatorBrush}" BorderThickness="0,0,0,1">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Command="{Binding CancelBackupCommand}" Margin="0,0,8,0"
+                            Visibility="{Binding IsBackingUp, Converter={StaticResource BoolToVis}}"
+                            AutomationProperties.Name="Cancel backup">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Cancel" Margin="0,0,4,0"/>
+                            <TextBlock Text="Cancel"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding BackupSelectedCommand}" Style="{StaticResource PillButtonStyle}"
+                            AutomationProperties.Name="Back up selected photos">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Download" Margin="0,0,6,0"/>
+                            <TextBlock>
+                                <Run Text="Back Up Selected ("/><Run Text="{Binding SelectedCount, Mode=OneWay}"/><Run Text=")"/>
+                            </TextBlock>
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding BackupAllCommand}" Margin="8,0,0,0"
+                            AutomationProperties.Name="Back up all new photos">
+                        <TextBlock Text="Back Up All (skips duplicates)"/>
+                    </Button>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <Button Command="{Binding SelectAllCommand}" Margin="0,0,6,0"
+                            AutomationProperties.Name="Select all">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="SelectAll" Margin="0,0,4,0"/>
+                            <TextBlock Text="All"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding SelectNoneCommand}" Margin="0,0,12,0"
+                            AutomationProperties.Name="Clear selection">
+                        <TextBlock Text="None"/>
+                    </Button>
+                    <TextBlock VerticalAlignment="Center" Style="{StaticResource CaptionTextStyle}">
+                        <Run Text="{Binding TotalCount, Mode=OneWay}"/><Run Text=" items · "/><Run Text="{Binding TotalSizeText, Mode=OneWay}"/>
+                    </TextBlock>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- ── Backup progress ──────────────────────────────────────────── -->
+        <ProgressBar DockPanel.Dock="Top" Height="4" BorderThickness="0"
+                     Minimum="0" Maximum="1" Value="{Binding BackupProgress, Mode=OneWay}"
+                     Visibility="{Binding IsBackingUp, Converter={StaticResource BoolToVis}}"/>
+
+        <!-- ── Grid ─────────────────────────────────────────────────────── -->
+        <Grid>
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding Items}" ItemTemplate="{StaticResource PhoneItemTemplate}"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" Margin="12"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <Border Background="#60000000"
+                    Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <ui:ProgressRing IsActive="{Binding IsLoading}" Width="48" Height="48"/>
+                    <TextBlock Text="Reading device…" Foreground="White" Margin="0,12,0,0" HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </DockPanel>
+</Page>
