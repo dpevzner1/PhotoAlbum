@@ -131,6 +131,13 @@ public sealed class PhoneBackupService : IPhoneBackupService
 
                     var hash = await _hasher.HashFileAsync(partPath, ct);
 
+                    // DUPLICATE = byte-identical content (BLAKE3 over the whole
+                    // file). This is strictly stronger than "same name" or even
+                    // "same metadata + size": if the hash matches, the pixels AND
+                    // all embedded metadata AND the size are identical. Same file
+                    // NAME with different content is NOT a duplicate — it is kept
+                    // and saved under an incremented name (see UniquePath), so
+                    // e.g. IMG_0001.HEIC and IMG_0001.JPG both survive.
                     // Resume path 2: identical content already exists in any previous backup.
                     if (index.Contains(hash))
                     {
@@ -141,11 +148,21 @@ public sealed class PhoneBackupService : IPhoneBackupService
                         break;
                     }
 
-                    File.Move(partPath, finalPath); // atomic commit
-                    // Preserve capture time on the backed-up file so Explorer
-                    // and library import show the real date, not the copy date.
+                    File.Move(partPath, finalPath); // atomic commit — original bytes copied
+                    // verbatim, so EMBEDDED metadata (EXIF/QuickTime GPS, camera,
+                    // orientation, and the true capture date) is preserved intact.
+                    // Additionally stamp the FILE SYSTEM created + modified times to
+                    // the capture date so Explorer/import sort by when it was taken,
+                    // not when it was copied.
                     if (item.DateTaken is { } taken)
-                        { try { File.SetLastWriteTime(finalPath, taken); } catch { } }
+                    {
+                        try
+                        {
+                            File.SetCreationTime(finalPath, taken);
+                            File.SetLastWriteTime(finalPath, taken);
+                        }
+                        catch { }
+                    }
                     index.Add(hash);
                     item.Blake3Hash = hash;
                     bytes += item.SizeBytes;
