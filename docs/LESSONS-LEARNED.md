@@ -171,7 +171,8 @@ For this phone on this machine, the reliable path:
 
 ## 7. Open items carried forward
 - **Free-space preflight** before backup (refuse if destination < needed).
-- **Cached inventory** for instant reconnect view + background rescan (queued;
-  gated on backup being fully tested end-to-end).
+- **Cached inventory** — DONE: instant reconnect from disk cache + incremental
+  "N new since last sync" + per-page thumbnail disk cache + paging. See
+  phone-inventory-and-paging.md.
 - Consider a **virtualizing wrap panel** so the grid can show the full set
   instead of a 500-item slice.

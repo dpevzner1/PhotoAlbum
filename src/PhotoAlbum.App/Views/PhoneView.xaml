@@ -214,11 +214,31 @@
                      Minimum="0" Maximum="1" Value="{Binding BackupProgress, Mode=OneWay}"
                      Visibility="{Binding IsBackingUp, Converter={StaticResource BoolToVis}}"/>
 
-        <!-- Display-cap note (large libraries render a slice; backup covers all) -->
+        <!-- Pager (large libraries: one 500-item page rendered at a time) -->
         <Border DockPanel.Dock="Top" Padding="16,5" Background="{DynamicResource NavHoverBrush}"
-                Visibility="{Binding DisplayCapped, Converter={StaticResource BoolToVis}}">
-            <TextBlock Text="{Binding DisplayCapText}" Style="{StaticResource CaptionTextStyle}"
-                       TextWrapping="Wrap"/>
+                Visibility="{Binding IsPaged, Converter={StaticResource BoolToVis}}">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Command="{Binding FirstPageCommand}" IsEnabled="{Binding CanPrevPage}"
+                            Padding="8,2" Margin="0,0,4,0" AutomationProperties.Name="First page">
+                        <TextBlock Text="⏮"/>
+                    </Button>
+                    <Button Command="{Binding PrevPageCommand}" IsEnabled="{Binding CanPrevPage}"
+                            Padding="8,2" Margin="0,0,4,0" AutomationProperties.Name="Previous page">
+                        <TextBlock Text="◀ Prev"/>
+                    </Button>
+                    <Button Command="{Binding NextPageCommand}" IsEnabled="{Binding CanNextPage}"
+                            Padding="8,2" Margin="0,0,4,0" AutomationProperties.Name="Next page">
+                        <TextBlock Text="Next ▶"/>
+                    </Button>
+                    <Button Command="{Binding LastPageCommand}" IsEnabled="{Binding CanNextPage}"
+                            Padding="8,2" AutomationProperties.Name="Last page">
+                        <TextBlock Text="⏭"/>
+                    </Button>
+                </StackPanel>
+                <TextBlock Text="{Binding PageText}" VerticalAlignment="Center"
+                           Style="{StaticResource CaptionTextStyle}" TextTrimming="CharacterEllipsis"/>
+            </DockPanel>
         </Border>
 
         <!-- ── Grid ─────────────────────────────────────────────────────── -->

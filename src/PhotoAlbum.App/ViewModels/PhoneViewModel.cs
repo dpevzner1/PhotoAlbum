@@ -47,6 +47,7 @@ public sealed partial class PhoneViewModel : ObservableObject
     private readonly AppleDriverService _appleDriver;
     private readonly PhoneDiagnosticsService _diagnostics;
     private readonly IUserSettingsRepository _userSettings;
+    private readonly PhoneInventoryService _inventory;
     private CancellationTokenSource? _loadCts;
     private CancellationTokenSource? _backupCts;
 
@@ -81,42 +82,62 @@ public sealed partial class PhoneViewModel : ObservableObject
     // The bound grid (Items) is CAPPED for rendering — WPF's WrapPanel does not
     // virtualize, so realizing tens of thousands of thumbnail tiles freezes the
     // UI thread. _allItems holds the COMPLETE library and is what backup and the
-    // counters use, so nothing is lost by only rendering a slice.
-    private const int DisplayCap = 500;
+    // counters use, so nothing is lost by only rendering a page.
+    // Exactly one page (<= PageSize tiles) is ever realized, so RAM stays flat
+    // whether the library is 500 items or 500,000.
+    private const int PageSize = 500;
 
     public ObservableCollection<PhoneItemVm> Items { get; } = [];
     private readonly List<PhoneItemVm> _allItems = [];
 
-    [ObservableProperty] private bool _displayCapped;
-    [ObservableProperty] private string _displayCapText = "";
+    // ── Paging state ──────────────────────────────────────────────────────────
+    [ObservableProperty] private int _pageIndex;          // 0-based
+    [ObservableProperty] private int _pageCount;
+    [ObservableProperty] private bool _isPaged;           // more than one page
+    [ObservableProperty] private string _pageText = "";
+    public bool CanPrevPage => PageIndex > 0;
+    public bool CanNextPage => PageIndex < PageCount - 1;
 
     // iPhone-style media type filter: 0=All, 1=Photos, 2=Videos
     [ObservableProperty] private int _typeFilterIndex;
     [ObservableProperty] private int _photoCount;
     [ObservableProperty] private int _videoCount;
 
-    partial void OnTypeFilterIndexChanged(int value) => ApplyTypeFilter();
+    partial void OnTypeFilterIndexChanged(int value) { PageIndex = 0; ApplyTypeFilter(); }
 
-    /// <summary>All items matching the current type filter (full set, not the capped view).</summary>
+    /// <summary>All items matching the current type filter (full set, not the current page).</summary>
     private IEnumerable<PhoneItemVm> FilteredAll() => _allItems.Where(vm =>
         TypeFilterIndex switch { 1 => !vm.IsVideo, 2 => vm.IsVideo, _ => true });
 
     private void ApplyTypeFilter()
     {
         var matched = FilteredAll().ToList();
+        PageCount = Math.Max(1, (matched.Count + PageSize - 1) / PageSize);
+        if (PageIndex >= PageCount) PageIndex = PageCount - 1;
+        if (PageIndex < 0) PageIndex = 0;
 
-        // Rebuild the bound collection with ONE reset, not N Adds — 60k
-        // individual CollectionChanged notifications alone would wedge the UI.
-        var shown = matched.Take(DisplayCap).ToList();
+        // Rebuild the bound collection with ONE reset (not N Adds) and only the
+        // current page's items — the entire memory-safety guarantee.
+        var page = matched.Skip(PageIndex * PageSize).Take(PageSize).ToList();
         Items.Clear();
-        foreach (var vm in shown) Items.Add(vm);
+        foreach (var vm in page) Items.Add(vm);
 
-        DisplayCapped = matched.Count > DisplayCap;
-        DisplayCapText = DisplayCapped
-            ? $"Showing first {DisplayCap:N0} of {matched.Count:N0} — “Back Up All” still covers everything"
+        IsPaged = matched.Count > PageSize;
+        var from = matched.Count == 0 ? 0 : PageIndex * PageSize + 1;
+        var to   = Math.Min((PageIndex + 1) * PageSize, matched.Count);
+        PageText = IsPaged
+            ? $"{from:N0}–{to:N0} of {matched.Count:N0}  (page {PageIndex + 1}/{PageCount})  —  “Back Up All” covers everything"
             : "";
+        OnPropertyChanged(nameof(CanPrevPage));
+        OnPropertyChanged(nameof(CanNextPage));
         RecountSelection();
+        _ = LoadPageThumbnailsAsync();
     }
+
+    [RelayCommand] private void NextPage()  { if (CanNextPage) { PageIndex++; ApplyTypeFilter(); } }
+    [RelayCommand] private void PrevPage()  { if (CanPrevPage) { PageIndex--; ApplyTypeFilter(); } }
+    [RelayCommand] private void FirstPage() { if (CanPrevPage) { PageIndex = 0; ApplyTypeFilter(); } }
+    [RelayCommand] private void LastPage()  { if (CanNextPage) { PageIndex = PageCount - 1; ApplyTypeFilter(); } }
 
     public string TotalSizeText => $"{TotalBytes / 1_073_741_824.0:F2} GB";
     public string DeviceTitle => Device is null ? "No phone connected"
@@ -124,7 +145,7 @@ public sealed partial class PhoneViewModel : ObservableObject
 
     public PhoneViewModel(IDeviceService devices, IPhoneBackupService backup, DeviceWatcher watcher,
         AppleDriverService appleDriver, PhoneDiagnosticsService diagnostics,
-        IUserSettingsRepository userSettings)
+        IUserSettingsRepository userSettings, PhoneInventoryService inventory)
     {
         _devices      = devices;
         _backup       = backup;
@@ -132,6 +153,7 @@ public sealed partial class PhoneViewModel : ObservableObject
         _appleDriver  = appleDriver;
         _diagnostics  = diagnostics;
         _userSettings = userSettings;
+        _inventory    = inventory;
     }
 
     [RelayCommand]
@@ -215,9 +237,25 @@ public sealed partial class PhoneViewModel : ObservableObject
             }
             else HasStorageInfo = false;
 
+            // INSTANT VIEW FROM CACHE: show the last sync's inventory immediately
+            // so the grid isn't empty while the fresh scan runs. The scan below
+            // is authoritative and replaces this once it completes.
+            var cached = await _inventory.LoadInventoryAsync(Device.StableKey, ct);
+            if (cached is { Count: > 0 })
+            {
+                foreach (var m in cached.OrderByDescending(m => m.DateTaken ?? DateTime.MinValue))
+                    _allItems.Add(new PhoneItemVm(m));
+                TotalCount = _allItems.Count;
+                TotalBytes = cached.Sum(i => i.SizeBytes);
+                PhotoCount = cached.Count(i => !i.IsVideo);
+                VideoCount = cached.Count(i => i.IsVideo);
+                ApplyTypeFilter(); // renders page 1 from cache (thumbnails from disk cache)
+                OnPropertyChanged(nameof(TotalSizeText));
+            }
+
             // Last scan's count = estimate for a determinate progress bar.
             var estRaw = await _userSettings.GetAsync(LastCountKeyPrefix + Device.StableKey, ct);
-            int estimate = int.TryParse(estRaw, out var e) && e > 0 ? e : 0;
+            int estimate = int.TryParse(estRaw, out var e) && e > 0 ? e : cached?.Count ?? 0;
             ScanIndeterminate = estimate == 0;
             ScanHintText = estimate > 0
                 ? $"~{estimate:N0} items expected (from last scan)"
@@ -237,6 +275,11 @@ public sealed partial class PhoneViewModel : ObservableObject
             // Remember this scan's count for next time's progress estimate.
             await _userSettings.SetAsync(LastCountKeyPrefix + Device.StableKey, media.Count.ToString(), ct);
 
+            // Fresh scan is authoritative. Compute how many are NEW since the
+            // cached inventory (incremental sync signal), then rebuild + persist.
+            var (_, addedSinceLast) = _inventory.Merge(cached, media);
+            _allItems.Clear();
+            TotalBytes = 0;
             foreach (var m in media.OrderByDescending(m => m.DateTaken ?? DateTime.MinValue))
             {
                 // Size+name is a cheap pre-mark; exact dedup happens by hash at backup time.
@@ -246,8 +289,11 @@ public sealed partial class PhoneViewModel : ObservableObject
             TotalCount = _allItems.Count;
             PhotoCount = _allItems.Count(i => !i.IsVideo);
             VideoCount = _allItems.Count(i => i.IsVideo);
-            ApplyTypeFilter();
+            ApplyTypeFilter(); // re-render current page + load its thumbnails
             OnPropertyChanged(nameof(TotalSizeText));
+
+            // Persist the fresh inventory so next connect is instant.
+            await _inventory.SaveInventoryAsync(Device.StableKey, media, ct);
             // The advertised total can legitimately exceed physical storage:
             // with iCloud "Optimize iPhone Storage", the phone advertises every
             // asset at its full ORIGINAL size and streams from iCloud on
@@ -258,12 +304,12 @@ public sealed partial class PhoneViewModel : ObservableObject
                 ? "No photos visible. Unlock the iPhone, tap “Trust This Computer” on it, keep it unlocked, then press Refresh. " +
                   "If it still shows nothing, install the Apple Devices app (or iTunes) so the Apple USB driver completes."
                 : $"{TotalCount:N0} items · {TotalSizeText} library size · {index.Count:N0} previously backed up" +
+                  (addedSinceLast > 0 && cached is { Count: > 0 } ? $" · {addedSinceLast:N0} new since last sync" : "") +
                   (exceedsDevice
                       ? "  —  larger than device storage: iCloud-optimized originals are included and download from iCloud during backup. " +
                         "For a faster full backup: iPhone Settings → Photos → Download and Keep Originals."
                       : "");
-
-            _ = LoadThumbnailsAsync(ct); // fire-and-forget, cancelled on reload
+            // Page thumbnails load via ApplyTypeFilter → LoadPageThumbnailsAsync.
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -276,19 +322,40 @@ public sealed partial class PhoneViewModel : ObservableObject
 
     private static string Gb(ulong bytes) => $"{bytes / 1_073_741_824.0:F1} GB";
 
-    private async Task LoadThumbnailsAsync(CancellationToken ct)
+    private CancellationTokenSource? _thumbCts;
+
+    /// <summary>
+    /// Load thumbnails for the CURRENT PAGE only. Cancels any prior page's load
+    /// on navigation, so at most one page of MTP thumbnail fetches is ever in
+    /// flight — bounded work, bounded memory. Disk cache makes revisits instant.
+    /// </summary>
+    private async Task LoadPageThumbnailsAsync()
     {
+        _thumbCts?.Cancel();
+        _thumbCts = new CancellationTokenSource();
+        var ct = _thumbCts.Token;
         if (Device is null) return;
-        // Thumbnails come over MTP one at a time — cap the count so huge
-        // libraries don't grind the device connection (v1 limitation).
-        const int MaxThumbnails = 400;
-        foreach (var vm in Items.Take(MaxThumbnails))
+
+        // Snapshot the page's items so paging away can't mutate mid-load.
+        var pageItems = Items.ToList();
+        foreach (var vm in pageItems)
         {
             if (ct.IsCancellationRequested) return;
+            if (vm.Thumbnail is not null) continue; // already loaded/cached this session
+
+            // 1) Disk cache (persists across sessions) — instant, no MTP.
+            var cached = await _inventory.TryLoadThumbnailAsync(Device.StableKey, vm.Item.ItemId, ct);
+            if (cached is not null) { vm.SetThumbnail(cached); continue; }
+
+            // 2) Fetch over MTP, then persist to the cache for next time.
             try
             {
                 var bytes = await _devices.GetThumbnailAsync(Device.DeviceId, vm.Item.ItemId, ct);
-                if (bytes is not null) vm.SetThumbnail(bytes);
+                if (bytes is not null)
+                {
+                    vm.SetThumbnail(bytes);
+                    _ = _inventory.SaveThumbnailAsync(Device.StableKey, vm.Item.ItemId, bytes);
+                }
             }
             catch { /* thumbnail is decorative — never fail the view */ }
         }

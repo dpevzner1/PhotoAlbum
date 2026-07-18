@@ -161,6 +161,7 @@ public partial class App : Application
                 services.AddSingleton<DeviceWatcher>();
                 services.AddSingleton<AppleDriverService>();
                 services.AddSingleton<PhoneDiagnosticsService>();
+                services.AddSingleton<PhoneInventoryService>();
 
                 // ViewModels
                 services.AddTransient<ViewModels.LibraryViewModel>();
