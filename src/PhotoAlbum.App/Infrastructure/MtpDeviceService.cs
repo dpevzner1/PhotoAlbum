@@ -25,6 +25,15 @@ public sealed class MtpDeviceService : IDeviceService
     private static SemaphoreSlim _gate = new(1, 1);
     private static readonly object _gateSwap = new();
 
+    // PERSISTENT CONNECTIONS: iOS PTP sours a client after repeated session
+    // open/close cycles (our old per-operation Connect/Disconnect — including
+    // the 20s watcher poll — eventually earns permanent 0x8007001E read
+    // faults, while Explorer's single long-lived session keeps working).
+    // We now mirror Explorer: connect once per device, reuse the session,
+    // release only when the device disappears or the watchdog abandons it.
+    private static readonly Dictionary<string, MediaDevice> _openDevices = new();
+    private static readonly Dictionary<string, PhoneDevice> _knownPhones = new();
+
     private const int AcquireTimeoutMs = 30_000;   // waiting for another op to finish
     private const int QuickOpTimeoutMs = 30_000;   // device list / storage / thumbnail
     // Long operations (scan, download) are watchdogged by PROGRESS, not wall
@@ -46,47 +55,123 @@ public sealed class MtpDeviceService : IDeviceService
         => RunGated<IReadOnlyList<PhoneDevice>>(() =>
         {
             var result = new List<PhoneDevice>();
+            var presentIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var device in MediaDevice.GetDevices())
             {
                 ct.ThrowIfCancellationRequested();
+                presentIds.Add(device.DeviceId);
+
+                // Known phone with a live session: reuse — NO reconnect cycle.
+                if (_knownPhones.TryGetValue(device.DeviceId, out var known))
+                {
+                    result.Add(known);
+                    continue;
+                }
+
                 try
                 {
                     device.Connect();
-                    try
+                    // Only phones/cameras speak MTP/PTP. USB sticks and card
+                    // readers also appear in the WPD list (wpdbusenum/MSC) —
+                    // they must not trigger the Phone menu.
+                    var protocol = Safe(() => device.Protocol) ?? "";
+                    bool isMedia = protocol.Contains("MTP", StringComparison.OrdinalIgnoreCase)
+                                || protocol.Contains("PTP", StringComparison.OrdinalIgnoreCase);
+                    if (!isMedia)
                     {
-                        // Only phones/cameras speak MTP/PTP. USB sticks and card
-                        // readers also appear in the WPD list (wpdbusenum/MSC) —
-                        // they must not trigger the Phone menu.
-                        var protocol = Safe(() => device.Protocol) ?? "";
-                        bool isMedia = protocol.Contains("MTP", StringComparison.OrdinalIgnoreCase)
-                                    || protocol.Contains("PTP", StringComparison.OrdinalIgnoreCase);
-                        if (!isMedia) continue;
-
-                        result.Add(new PhoneDevice
-                        {
-                            DeviceId     = device.DeviceId,
-                            FriendlyName = FirstNonEmpty(device.FriendlyName, device.Description, "Portable Device"),
-                            Manufacturer = Safe(() => device.Manufacturer),
-                            Model        = Safe(() => device.Model),
-                            SerialNumber = Safe(() => device.SerialNumber),
-                        });
+                        try { device.Disconnect(); } catch { }
+                        continue;
                     }
-                    finally { device.Disconnect(); }
+
+                    var phone = new PhoneDevice
+                    {
+                        DeviceId     = device.DeviceId,
+                        FriendlyName = FirstNonEmpty(device.FriendlyName, device.Description, "Portable Device"),
+                        Manufacturer = Safe(() => device.Manufacturer),
+                        Model        = Safe(() => device.Model),
+                        SerialNumber = Safe(() => device.SerialNumber),
+                    };
+                    // Keep the session OPEN — this is the persistent connection.
+                    _openDevices[device.DeviceId] = device;
+                    _knownPhones[device.DeviceId] = phone;
+                    Services.RunLogger.Info("MtpDevice", $"Persistent session opened: {phone.FriendlyName}");
+                    result.Add(phone);
                 }
                 catch
                 {
                     // Device present but not accessible (locked / not trusted / busy) — skip.
+                    try { device.Disconnect(); } catch { }
                 }
+            }
+
+            // Devices that vanished: drop their cached sessions.
+            foreach (var gone in _openDevices.Keys.Where(k => !presentIds.Contains(k)).ToList())
+            {
+                Services.RunLogger.Info("MtpDevice", "Device removed — releasing persistent session");
+                try { _openDevices[gone].Disconnect(); } catch { }
+                _openDevices.Remove(gone);
+                _knownPhones.Remove(gone);
             }
             return result;
         }, QuickOpTimeoutMs, "device detection", ct);
 
-    public Task<IReadOnlyList<PhoneMediaItem>> GetMediaItemsAsync(
+    public async Task<IReadOnlyList<PhoneMediaItem>> GetMediaItemsAsync(
         string deviceId, IProgress<PhoneScanProgress>? progress = null, CancellationToken ct = default)
+    {
+        var result = await GetMediaItemsOnceAsync(deviceId, progress, ct);
+        if (result.Count > 0) return result;
+
+        // Empty result usually means the persistent session was negotiated
+        // while the phone was locked — such a session NEVER shows storage,
+        // even after unlock. Drop it and renegotiate once.
+        Services.RunLogger.Info("MtpDevice",
+            "Empty scan — dropping the cached session and renegotiating (session may predate unlock)");
+        await InvalidateSessionAsync(deviceId, ct);
+        await Task.Delay(2000, ct);
+        return await GetMediaItemsOnceAsync(deviceId, progress, ct);
+    }
+
+    private Task InvalidateSessionAsync(string deviceId, CancellationToken ct)
+        => RunGated<object?>(() =>
+        {
+            if (_openDevices.TryGetValue(deviceId, out var d))
+            {
+                try { d.Disconnect(); } catch { }
+                _openDevices.Remove(deviceId);
+                _knownPhones.Remove(deviceId);
+            }
+            return null;
+        }, QuickOpTimeoutMs, "session invalidate", ct);
+
+    private Task<IReadOnlyList<PhoneMediaItem>> GetMediaItemsOnceAsync(
+        string deviceId, IProgress<PhoneScanProgress>? progress, CancellationToken ct)
     {
         var heartbeat = new long[] { Environment.TickCount64 };
         return WithDevice<IReadOnlyList<PhoneMediaItem>>(deviceId, device =>
         {
+            // iOS needs time after connect to prepare its PTP photo database —
+            // premature reads fail with 0x8007001E ("cannot read from the
+            // specified device"). Retry with backoff instead of giving up.
+            for (int attempt = 1; ; attempt++)
+            {
+                try { return ScanOnce(device); }
+                catch (Exception ex) when (attempt <= 4 && IsDeviceReadFault(ex))
+                {
+                    var waitS = 8 * attempt;
+                    Services.RunLogger.Warn("MtpDevice",
+                        $"Read fault 0x8007001E — phone still preparing its photo database. Retry {attempt}/4 in {waitS}s");
+                    var end = Environment.TickCount64 + waitS * 1000;
+                    while (Environment.TickCount64 < end)
+                    {
+                        ct.ThrowIfCancellationRequested();
+                        heartbeat[0] = Environment.TickCount64; // waiting deliberately — not stalled
+                        Thread.Sleep(1000);
+                    }
+                }
+            }
+
+            IReadOnlyList<PhoneMediaItem> ScanOnce(MediaDevice device)
+            {
             var items = new List<PhoneMediaItem>();
             var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             long bytes = 0;
@@ -100,41 +185,71 @@ public sealed class MtpDeviceService : IDeviceService
             // Enumerate MediaFileInfo objects directly (bulk metadata) instead
             // of a per-file GetFileInfo round-trip — orders of magnitude faster
             // over MTP on large libraries.
+            // Manual breadth-first walk instead of a single recursive query:
+            // some iPhone sessions instantly fault (0x8007001E) on the recursive
+            // form while serving per-folder listings fine. Walking folder by
+            // folder isolates faults to individual folders and yields partial
+            // results instead of all-or-nothing.
+            int faultedDirs = 0, okDirs = 0;
+            Exception? lastFault = null;
             foreach (var root in FindMediaRoots(device))
             {
-                IEnumerable<MediaFileInfo> files;
-                try { files = device.GetDirectoryInfo(root).EnumerateFiles("*", SearchOption.AllDirectories); }
-                catch (Exception ex)
-                {
-                    Services.RunLogger.Warn("MtpDevice", $"Cannot enumerate '{root}'", ex);
-                    continue;
-                }
-
-                foreach (var info in files)
+                var pending = new Queue<string>();
+                pending.Enqueue(root);
+                while (pending.Count > 0)
                 {
                     ct.ThrowIfCancellationRequested();
-                    heartbeat[0] = Environment.TickCount64; // every entry seen counts as progress
-                    var ext = Path.GetExtension(info.Name).ToLowerInvariant();
-                    if (!MediaExtensions.Contains(ext)) continue;
+                    heartbeat[0] = Environment.TickCount64;
+                    var dir = pending.Dequeue();
 
-                    // Defensive: never count the same device object twice, even if
-                    // roots overlap or the device replays entries.
-                    if (!seenIds.Add(info.FullName)) { dupSkipped++; continue; }
-
-                    items.Add(new PhoneMediaItem
+                    try
                     {
-                        ItemId    = info.FullName,
-                        Name      = info.Name,
-                        Folder    = TrimToDcim(Path.GetDirectoryName(info.FullName) ?? ""),
-                        SizeBytes = (long)info.Length,
-                        DateTaken = info.DateAuthored != default ? info.DateAuthored
-                                  : info.LastWriteTime != default ? info.LastWriteTime : null,
-                        IsVideo   = VideoExtensions.Contains(ext),
-                    });
-                    bytes += (long)info.Length;
-                    if (items.Count % 25 == 0) progress?.Report(new PhoneScanProgress(items.Count, bytes));
+                        foreach (var sub in device.EnumerateDirectories(dir))
+                            pending.Enqueue(sub);
+                    }
+                    catch (Exception ex)
+                    {
+                        faultedDirs++; lastFault = ex;
+                        Services.RunLogger.Warn("MtpDevice", $"Subfolder listing failed for '{dir}' — skipping its children");
+                    }
+
+                    try
+                    {
+                        foreach (var info in device.GetDirectoryInfo(dir).EnumerateFiles())
+                        {
+                            ct.ThrowIfCancellationRequested();
+                            heartbeat[0] = Environment.TickCount64;
+                            var ext = Path.GetExtension(info.Name).ToLowerInvariant();
+                            if (!MediaExtensions.Contains(ext)) continue;
+                            if (!seenIds.Add(info.FullName)) { dupSkipped++; continue; }
+
+                            items.Add(new PhoneMediaItem
+                            {
+                                ItemId    = info.FullName,
+                                Name      = info.Name,
+                                Folder    = TrimToDcim(Path.GetDirectoryName(info.FullName) ?? ""),
+                                SizeBytes = (long)info.Length,
+                                DateTaken = info.DateAuthored != default ? info.DateAuthored
+                                          : info.LastWriteTime != default ? info.LastWriteTime : null,
+                                IsVideo   = VideoExtensions.Contains(ext),
+                            });
+                            bytes += (long)info.Length;
+                            if (items.Count % 25 == 0) progress?.Report(new PhoneScanProgress(items.Count, bytes));
+                        }
+                        okDirs++;
+                    }
+                    catch (Exception ex)
+                    {
+                        faultedDirs++; lastFault = ex;
+                        Services.RunLogger.Warn("MtpDevice", $"File listing failed for '{dir}' — folder skipped");
+                    }
                 }
             }
+            Services.RunLogger.Info("MtpDevice", $"Folder walk: {okDirs} folders read, {faultedDirs} faulted");
+
+            // Total blackout (nothing readable) → let the preparing-DB retry engage.
+            if (items.Count == 0 && faultedDirs > 0 && lastFault is not null)
+                throw lastFault;
             progress?.Report(new PhoneScanProgress(items.Count, bytes));
 
             // Post-scan diagnostics: extension byte histogram + duplicate stats.
@@ -151,7 +266,20 @@ public sealed class MtpDeviceService : IDeviceService
                 $"Duplicate ids skipped: {dupSkipped}. Same-name photo pairs (HEIC+JPG?): {pairNames}. " +
                 $"By type: {string.Join("  ", histogram)}");
             return items;
+            }
         }, StallTimeoutMs, "photo scan", ct, () => heartbeat[0]);
+    }
+
+    private static bool IsDeviceReadFault(Exception ex)
+    {
+        for (var e = (Exception?)ex; e is not null; e = e switch
+             { AggregateException a => a.InnerExceptions.FirstOrDefault(), _ => e.InnerException })
+        {
+            if ((uint)e.HResult == 0x8007001E ||
+                e.Message.Contains("cannot read from the specified device", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     public Task<PhoneStorageInfo?> GetStorageInfoAsync(string deviceId, CancellationToken ct = default)
@@ -227,11 +355,24 @@ public sealed class MtpDeviceService : IDeviceService
         Func<long>? lastProgressTick = null)
         => RunGated(() =>
         {
-            var device = MediaDevice.GetDevices().FirstOrDefault(d => d.DeviceId == deviceId)
-                ?? throw new InvalidOperationException("Device is no longer connected.");
-            device.Connect();
+            // Reuse the persistent session; open one only if we don't have it.
+            if (!_openDevices.TryGetValue(deviceId, out var device))
+            {
+                device = MediaDevice.GetDevices().FirstOrDefault(d => d.DeviceId == deviceId)
+                    ?? throw new InvalidOperationException("Device is no longer connected.");
+                device.Connect();
+                _openDevices[deviceId] = device;
+            }
             try { return action(device); }
-            finally { try { device.Disconnect(); } catch { } }
+            catch
+            {
+                // A faulted session is not trustworthy — drop it so the next
+                // operation negotiates a fresh one.
+                try { device.Disconnect(); } catch { }
+                _openDevices.Remove(deviceId);
+                _knownPhones.Remove(deviceId);
+                throw;
+            }
         }, opTimeoutMs, opName, ct, lastProgressTick);
 
     /// <summary>

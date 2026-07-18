@@ -78,8 +78,17 @@ public sealed partial class PhoneViewModel : ObservableObject
     [ObservableProperty] private string _storageText = "";
     [ObservableProperty] private double _storageUsedPct;
 
+    // The bound grid (Items) is CAPPED for rendering — WPF's WrapPanel does not
+    // virtualize, so realizing tens of thousands of thumbnail tiles freezes the
+    // UI thread. _allItems holds the COMPLETE library and is what backup and the
+    // counters use, so nothing is lost by only rendering a slice.
+    private const int DisplayCap = 500;
+
     public ObservableCollection<PhoneItemVm> Items { get; } = [];
     private readonly List<PhoneItemVm> _allItems = [];
+
+    [ObservableProperty] private bool _displayCapped;
+    [ObservableProperty] private string _displayCapText = "";
 
     // iPhone-style media type filter: 0=All, 1=Photos, 2=Videos
     [ObservableProperty] private int _typeFilterIndex;
@@ -88,15 +97,24 @@ public sealed partial class PhoneViewModel : ObservableObject
 
     partial void OnTypeFilterIndexChanged(int value) => ApplyTypeFilter();
 
+    /// <summary>All items matching the current type filter (full set, not the capped view).</summary>
+    private IEnumerable<PhoneItemVm> FilteredAll() => _allItems.Where(vm =>
+        TypeFilterIndex switch { 1 => !vm.IsVideo, 2 => vm.IsVideo, _ => true });
+
     private void ApplyTypeFilter()
     {
+        var matched = FilteredAll().ToList();
+
+        // Rebuild the bound collection with ONE reset, not N Adds — 60k
+        // individual CollectionChanged notifications alone would wedge the UI.
+        var shown = matched.Take(DisplayCap).ToList();
         Items.Clear();
-        foreach (var vm in _allItems)
-        {
-            if (TypeFilterIndex == 1 && vm.IsVideo) continue;
-            if (TypeFilterIndex == 2 && !vm.IsVideo) continue;
-            Items.Add(vm);
-        }
+        foreach (var vm in shown) Items.Add(vm);
+
+        DisplayCapped = matched.Count > DisplayCap;
+        DisplayCapText = DisplayCapped
+            ? $"Showing first {DisplayCap:N0} of {matched.Count:N0} — “Back Up All” still covers everything"
+            : "";
         RecountSelection();
     }
 
@@ -279,24 +297,25 @@ public sealed partial class PhoneViewModel : ObservableObject
     [RelayCommand]
     private void SelectAll()
     {
-        foreach (var i in Items) i.IsSelected = true;
-        SelectedCount = Items.Count;
+        // Selects the ENTIRE filtered library, not just the rendered slice.
+        foreach (var i in FilteredAll()) i.IsSelected = true;
+        SelectedCount = FilteredAll().Count();
     }
 
     [RelayCommand]
     private void SelectNone()
     {
-        foreach (var i in Items) i.IsSelected = false;
+        foreach (var i in _allItems) i.IsSelected = false;
         SelectedCount = 0;
     }
 
-    public void RecountSelection() => SelectedCount = Items.Count(i => i.IsSelected);
+    public void RecountSelection() => SelectedCount = _allItems.Count(i => i.IsSelected);
 
     [RelayCommand]
     private async Task BackupSelectedAsync()
     {
         if (Device is null || IsBackingUp) return;
-        var selected = Items.Where(i => i.IsSelected).Select(i => i.Item).ToList();
+        var selected = _allItems.Where(i => i.IsSelected).Select(i => i.Item).ToList();
         if (selected.Count == 0) { StatusText = "Select at least one item to back up."; return; }
         await RunBackupAsync(selected);
     }
@@ -305,7 +324,8 @@ public sealed partial class PhoneViewModel : ObservableObject
     private async Task BackupAllAsync()
     {
         if (Device is null || IsBackingUp) return;
-        await RunBackupAsync(Items.Select(i => i.Item).ToList());
+        // The full filtered library — every item, not the capped display.
+        await RunBackupAsync(FilteredAll().Select(i => i.Item).ToList());
     }
 
     [RelayCommand]

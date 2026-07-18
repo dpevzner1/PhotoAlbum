@@ -135,3 +135,35 @@ PhoneDiag     | Driver=OK  Service=RUNNING                          ← Windows 
   hash-verified), with the Store app as fallback — identical behaviour in the
   portable build and the installed build. The app owns the full lifecycle:
   detect → install → verify → repair.
+
+### 7. Read fault 0x8007001E on recursive enumeration [IN PROGRESS 2026-07-18]
+- **Symptom:** storage grants, top-level folder listing works ("no DCIM" layout
+  detection succeeds), but the recursive file query faults instantly with
+  0x8007001E ("cannot read from the specified device"), every attempt.
+- **Mitigations built:** (a) preparing-database retry ladder — 4 attempts with
+  8/16/24/32 s backoff; (b) **folder-by-folder walk** replacing the recursive
+  query — per-folder fault isolation, partial results, and a summary log line
+  `Folder walk: N folders read, M faulted` to localize the failure.
+- **Next on resume:** run the folder-walk build (already in COMPILED) with the
+  phone unlocked; the walk summary decides: all-faulted → session-level issue
+  (repair/replug/reboot ladder), some-faulted → we have the library minus
+  specific folders to investigate.
+
+### 8. UI freeze after successful 60k-item scan [RESOLVED 2026-07-18 — PRODUCTION]
+- **Symptom:** scan completed (`60,185 items, 261.8 GB, 0 faulted`), then the
+  app froze ~6 min later with the log silent.
+- **Cause:** rendering all 60k thumbnail tiles — 60k individual
+  ObservableCollection Adds + WPF `WrapPanel` does not virtualize, so every tile
+  realized on the UI thread.
+- **Fix:** render a capped slice (500) via one bulk populate; keep the full set
+  in `_allItems` driving counters, Select All, and Back Up All. UI note:
+  "Showing first 500 of N — Back Up All still covers everything".
+- **Outcome:** grid + video previews flawless. **Feature working end-to-end.**
+  Full retrospective: [LESSONS-LEARNED.md](LESSONS-LEARNED.md).
+
+### RESOLUTION SUMMARY — the fix that brought it to production
+The decisive fix was **persistent single sessions** (issue D): connect once and
+hold it like Explorer, instead of connect/disconnect per operation which soured
+the iOS PTP session against our client. Combined with the folder-walk (fault
+isolation), progress-aware watchdog, in-app Repair Connection, driver
+bootstrap, and the display cap — the phone enumerates its full library reliably.

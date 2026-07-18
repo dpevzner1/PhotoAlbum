@@ -214,6 +214,13 @@
                      Minimum="0" Maximum="1" Value="{Binding BackupProgress, Mode=OneWay}"
                      Visibility="{Binding IsBackingUp, Converter={StaticResource BoolToVis}}"/>
 
+        <!-- Display-cap note (large libraries render a slice; backup covers all) -->
+        <Border DockPanel.Dock="Top" Padding="16,5" Background="{DynamicResource NavHoverBrush}"
+                Visibility="{Binding DisplayCapped, Converter={StaticResource BoolToVis}}">
+            <TextBlock Text="{Binding DisplayCapText}" Style="{StaticResource CaptionTextStyle}"
+                       TextWrapping="Wrap"/>
+        </Border>
+
         <!-- ── Grid ─────────────────────────────────────────────────────── -->
         <Grid>
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
