@@ -26,7 +26,9 @@
                         <Grid>
                             <ui:SymbolIcon Symbol="Camera" Width="28" Height="28"
                                            Opacity="0.35" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"/>
+                            <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"
+                                   RenderOptions.BitmapScalingMode="LowQuality"
+                                   RenderOptions.CachingHint="Cache"/>
                             <ui:SymbolIcon Symbol="Video" Width="18" Height="18" Margin="6"
                                            HorizontalAlignment="Right" VerticalAlignment="Bottom"
                                            Visibility="{Binding IsVideo, Converter={StaticResource BoolToVis}}"/>

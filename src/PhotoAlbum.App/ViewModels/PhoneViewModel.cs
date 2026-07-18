@@ -25,7 +25,15 @@ public sealed partial class PhoneItemVm : ObservableObject
     public bool IsVideo => Item.IsVideo;
     public bool AlreadyBackedUp => Item.AlreadyBackedUp;
 
-    public void SetThumbnail(byte[] bytes)
+    public void SetThumbnail(byte[] bytes) => Thumbnail = DecodeFrozen(bytes);
+
+    /// <summary>
+    /// Decode JPEG bytes to a display-sized (160px), FROZEN BitmapImage.
+    /// Frozen ⇒ safe to build on a background thread and hand straight to the
+    /// render thread without a clone — GPU/CPU efficient. DecodePixelWidth caps
+    /// the decode to tile size so a 4000px original never inflates RAM.
+    /// </summary>
+    public static BitmapImage DecodeFrozen(byte[] bytes)
     {
         using var ms = new MemoryStream(bytes);
         var bmp = new BitmapImage();
@@ -35,7 +43,7 @@ public sealed partial class PhoneItemVm : ObservableObject
         bmp.DecodePixelWidth = 160;
         bmp.EndInit();
         bmp.Freeze();
-        Thumbnail = bmp;
+        return bmp;
     }
 }
 
@@ -89,6 +97,7 @@ public sealed partial class PhoneViewModel : ObservableObject
 
     public ObservableCollection<PhoneItemVm> Items { get; } = [];
     private readonly List<PhoneItemVm> _allItems = [];
+    private readonly List<PhoneItemVm> _renderedPage = []; // thumbnails to release on page change
 
     // ── Paging state ──────────────────────────────────────────────────────────
     [ObservableProperty] private int _pageIndex;          // 0-based
@@ -116,11 +125,18 @@ public sealed partial class PhoneViewModel : ObservableObject
         if (PageIndex >= PageCount) PageIndex = PageCount - 1;
         if (PageIndex < 0) PageIndex = 0;
 
+        // Release the previous page's decoded bitmaps (they are re-loadable from
+        // the disk thumbnail cache instantly). Without this, paging through the
+        // library accumulates ~51 MB of decoded bitmaps per page in RAM.
+        foreach (var vm in _renderedPage) vm.Thumbnail = null;
+
         // Rebuild the bound collection with ONE reset (not N Adds) and only the
         // current page's items — the entire memory-safety guarantee.
         var page = matched.Skip(PageIndex * PageSize).Take(PageSize).ToList();
         Items.Clear();
         foreach (var vm in page) Items.Add(vm);
+        _renderedPage.Clear();
+        _renderedPage.AddRange(page);
 
         IsPaged = matched.Count > PageSize;
         var from = matched.Count == 0 ? 0 : PageIndex * PageSize + 1;
@@ -344,8 +360,14 @@ public sealed partial class PhoneViewModel : ObservableObject
             if (vm.Thumbnail is not null) continue; // already loaded/cached this session
 
             // 1) Disk cache (persists across sessions) — instant, no MTP.
+            //    Decode off the UI thread; assign the frozen bitmap on the UI thread.
             var cached = await _inventory.TryLoadThumbnailAsync(Device.StableKey, vm.Item.ItemId, ct);
-            if (cached is not null) { vm.SetThumbnail(cached); continue; }
+            if (cached is not null)
+            {
+                var bmp = await Task.Run(() => PhoneItemVm.DecodeFrozen(cached), ct);
+                if (!ct.IsCancellationRequested) vm.Thumbnail = bmp;
+                continue;
+            }
 
             // 2) Fetch over MTP, then persist to the cache for next time.
             try
@@ -353,7 +375,8 @@ public sealed partial class PhoneViewModel : ObservableObject
                 var bytes = await _devices.GetThumbnailAsync(Device.DeviceId, vm.Item.ItemId, ct);
                 if (bytes is not null)
                 {
-                    vm.SetThumbnail(bytes);
+                    var bmp = await Task.Run(() => PhoneItemVm.DecodeFrozen(bytes), ct);
+                    if (!ct.IsCancellationRequested) vm.Thumbnail = bmp;
                     _ = _inventory.SaveThumbnailAsync(Device.StableKey, vm.Item.ItemId, bytes);
                 }
             }
