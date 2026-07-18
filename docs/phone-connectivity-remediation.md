@@ -95,3 +95,43 @@ PhoneDiag     | Driver=OK  Service=RUNNING                          ← Windows 
   download originals from iCloud mid-transfer — slow, and failures surface as
   per-item retries. For a full local backup, consider setting Photos →
   **Download and Keep Originals** on the phone first.
+
+### 6. Unlocked + trusted + screen on — storage still (none) [RESOLVED 2026-07-18]
+- **Symptom:** phone unlocked with screen on, all Windows layers healthy
+  (3 USB interfaces Started, WPDBusEnum + Apple service RUNNING, app detects
+  device), yet every scan logs `Storages: (none)`. Also observed: a spontaneous
+  21-second USB drop/reconnect with nobody touching the cable.
+- **Leading theory — connection-order gate:** iOS decides photo exposure when
+  the USB session is ESTABLISHED. Plugged-while-locked → storage stays hidden
+  for the whole session even after unlocking. Remedy: unlock first (home
+  screen), then plug in.
+- **Second suspect — physical:** spontaneous drops suggest a flaky
+  cable/port. Next test: different USB port (direct, no hub) + original Apple
+  cable.
+- **Verified working reference:** 2026-07-10 after Reset Location & Privacy +
+  Trust, a scan enumerated 15,525 items / 69.3 GB before being interrupted —
+  the full pipeline works when the session is granted.
+- **Note:** greyed-out Auto-Lock is caused by Low Power Mode (Settings →
+  Battery) — not applicable in this instance (LPM was off).
+
+- **RESOLUTION:** the in-app **Repair Connection** action fixed it — restart
+  WPDBusEnum + Apple Mobile Device Service, then restart the iPhone USB device
+  node (simulated replug), as one elevated step. This mirrors the original
+  bring-up procedure and is now a permanent button in the Phone view.
+
+## Permanent safeguards (2026-07-18)
+
+- **Startup system check:** every app launch runs the full diagnostics
+  (Apple driver present, Apple Mobile Device Service, WPDBusEnum) in the
+  background and logs one line: `PhoneDiag | Driver=OK  AppleService=RUNNING
+  WPDBusEnum=RUNNING`. Any failure logs a warning pointing at the Phone view.
+- **Repair Connection button** (Phone view header): one elevated click →
+  restart both services + re-register the iPhone device → automatic rescan.
+  The service-warning banner also routes here.
+- **Driver "packaging":** Apple's SLA forbids shipping the driver binary in
+  our installer, so what is packaged is the **bootstrap process**:
+  `AppleDriverService` detects the driver and installs it on demand straight
+  from Apple's CDN (`winget install Apple.AppleMobileDeviceSupport`,
+  hash-verified), with the Store app as fallback — identical behaviour in the
+  portable build and the installed build. The app owns the full lifecycle:
+  detect → install → verify → repair.

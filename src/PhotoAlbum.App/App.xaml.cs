@@ -209,6 +209,21 @@ public partial class App : Application
             }
         });
 
+        // Startup system check: Apple driver + Apple service + WPDBusEnum.
+        // Result goes to the run log; the Phone view surfaces actionable
+        // banners (Install Driver / Repair Connection) when anything is off.
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                var diag = _host.Services.GetRequiredService<PhoneDiagnosticsService>().Run();
+                if (!diag.AllHealthy)
+                    RunLogger.Warn("App",
+                        "Startup system check found phone-connectivity issues — open the Phone view and use Install Driver / Repair Connection");
+            }
+            catch (Exception ex) { RunLogger.Warn("App", "Startup system check failed", ex); }
+        });
+
         RunLogger.Info("App", "Creating MainWindow");
         var window = _host.Services.GetRequiredService<MainWindow>();
         window.Show();

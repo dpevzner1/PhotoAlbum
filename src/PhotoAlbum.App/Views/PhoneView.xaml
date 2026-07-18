@@ -73,6 +73,15 @@
                         <TextBlock Text="Refresh"/>
                     </StackPanel>
                 </Button>
+                <Button DockPanel.Dock="Right" Command="{Binding RepairConnectionCommand}"
+                        Margin="0,0,8,0"
+                        ToolTip="Restart the Apple service, portable-device service, and the iPhone USB device (admin prompt)"
+                        AutomationProperties.Name="Repair Apple connection">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Repair" Margin="0,0,6,0"/>
+                        <TextBlock Text="Repair Connection"/>
+                    </StackPanel>
+                </Button>
                 <StackPanel Orientation="Horizontal">
                     <ui:SymbolIcon Symbol="CellPhone" Width="24" Height="24" Margin="0,0,10,0"/>
                     <StackPanel>
@@ -117,12 +126,12 @@
                 Background="{StaticResource WarningBrush}"
                 Visibility="{Binding ServiceStopped, Converter={StaticResource BoolToVis}}">
             <DockPanel>
-                <Button DockPanel.Dock="Right" Command="{Binding StartAppleServiceCommand}"
-                        AutomationProperties.Name="Start the Apple Mobile Device Service">
-                    <TextBlock Text="Start Service"/>
+                <Button DockPanel.Dock="Right" Command="{Binding RepairConnectionCommand}"
+                        AutomationProperties.Name="Repair the phone connection services">
+                    <TextBlock Text="Repair Connection"/>
                 </Button>
                 <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,8,0"
-                           Text="The Apple Mobile Device Service is installed but not running. Starting it improves iPhone connectivity (a Windows permission prompt will appear)."/>
+                           Text="A phone-connectivity service is not running (Apple Mobile Device Service or Windows Portable Device Enumerator). Repair restarts both and re-registers the iPhone (a Windows permission prompt will appear)."/>
             </DockPanel>
         </Border>
 

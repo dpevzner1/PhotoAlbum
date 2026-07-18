@@ -27,7 +27,10 @@ public sealed class MtpDeviceService : IDeviceService
 
     private const int AcquireTimeoutMs = 30_000;   // waiting for another op to finish
     private const int QuickOpTimeoutMs = 30_000;   // device list / storage / thumbnail
-    private const int LongOpTimeoutMs  = 15 * 60_000; // full scan / large video download
+    // Long operations (scan, download) are watchdogged by PROGRESS, not wall
+    // time: they may run for hours as long as items/bytes keep advancing.
+    // Only a stall (no progress at all for this window) aborts them.
+    private const int StallTimeoutMs   = 120_000;
 
     private static readonly string[] VideoExtensions = [".mov", ".mp4", ".m4v", ".avi", ".3gp", ".mkv", ".wmv"];
 
@@ -80,7 +83,9 @@ public sealed class MtpDeviceService : IDeviceService
 
     public Task<IReadOnlyList<PhoneMediaItem>> GetMediaItemsAsync(
         string deviceId, IProgress<PhoneScanProgress>? progress = null, CancellationToken ct = default)
-        => WithDevice<IReadOnlyList<PhoneMediaItem>>(deviceId, device =>
+    {
+        var heartbeat = new long[] { Environment.TickCount64 };
+        return WithDevice<IReadOnlyList<PhoneMediaItem>>(deviceId, device =>
         {
             var items = new List<PhoneMediaItem>();
             var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -108,6 +113,7 @@ public sealed class MtpDeviceService : IDeviceService
                 foreach (var info in files)
                 {
                     ct.ThrowIfCancellationRequested();
+                    heartbeat[0] = Environment.TickCount64; // every entry seen counts as progress
                     var ext = Path.GetExtension(info.Name).ToLowerInvariant();
                     if (!MediaExtensions.Contains(ext)) continue;
 
@@ -145,7 +151,8 @@ public sealed class MtpDeviceService : IDeviceService
                 $"Duplicate ids skipped: {dupSkipped}. Same-name photo pairs (HEIC+JPG?): {pairNames}. " +
                 $"By type: {string.Join("  ", histogram)}");
             return items;
-        }, LongOpTimeoutMs, "photo scan", ct);
+        }, StallTimeoutMs, "photo scan", ct, () => heartbeat[0]);
+    }
 
     public Task<PhoneStorageInfo?> GetStorageInfoAsync(string deviceId, CancellationToken ct = default)
         => WithDevice<PhoneStorageInfo?>(deviceId, device =>
@@ -170,13 +177,36 @@ public sealed class MtpDeviceService : IDeviceService
         }, QuickOpTimeoutMs, "storage info", ct);
 
     public Task DownloadItemAsync(string deviceId, string itemId, string destinationPath, CancellationToken ct = default)
-        => WithDevice<object?>(deviceId, device =>
+    {
+        var heartbeat = new long[] { Environment.TickCount64 };
+        return WithDevice<object?>(deviceId, device =>
         {
             Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
-            using var fs = File.Create(destinationPath);
+            using var fs = new HeartbeatStream(File.Create(destinationPath), heartbeat);
             device.DownloadFile(itemId, fs);
             return null;
-        }, LongOpTimeoutMs, "photo download", ct);
+        }, StallTimeoutMs, "photo download", ct, () => heartbeat[0]);
+    }
+
+    /// <summary>Passthrough stream that records a progress tick on every write —
+    /// lets the watchdog distinguish a slow large download from a stalled one.</summary>
+    private sealed class HeartbeatStream(Stream inner, long[] heartbeat) : Stream
+    {
+        public override void Write(byte[] buffer, int offset, int count)
+        { heartbeat[0] = Environment.TickCount64; inner.Write(buffer, offset, count); }
+        public override void Write(ReadOnlySpan<byte> buffer)
+        { heartbeat[0] = Environment.TickCount64; inner.Write(buffer); }
+        public override bool CanRead => inner.CanRead;
+        public override bool CanSeek => inner.CanSeek;
+        public override bool CanWrite => inner.CanWrite;
+        public override long Length => inner.Length;
+        public override long Position { get => inner.Position; set => inner.Position = value; }
+        public override void Flush() => inner.Flush();
+        public override int Read(byte[] buffer, int offset, int count) => inner.Read(buffer, offset, count);
+        public override long Seek(long offset, SeekOrigin origin) => inner.Seek(offset, origin);
+        public override void SetLength(long value) => inner.SetLength(value);
+        protected override void Dispose(bool disposing) { if (disposing) inner.Dispose(); base.Dispose(disposing); }
+    }
 
     public Task<byte[]?> GetThumbnailAsync(string deviceId, string itemId, CancellationToken ct = default)
         => WithDevice<byte[]?>(deviceId, device =>
@@ -193,7 +223,8 @@ public sealed class MtpDeviceService : IDeviceService
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     private static Task<T> WithDevice<T>(
-        string deviceId, Func<MediaDevice, T> action, int opTimeoutMs, string opName, CancellationToken ct)
+        string deviceId, Func<MediaDevice, T> action, int opTimeoutMs, string opName, CancellationToken ct,
+        Func<long>? lastProgressTick = null)
         => RunGated(() =>
         {
             var device = MediaDevice.GetDevices().FirstOrDefault(d => d.DeviceId == deviceId)
@@ -201,15 +232,21 @@ public sealed class MtpDeviceService : IDeviceService
             device.Connect();
             try { return action(device); }
             finally { try { device.Disconnect(); } catch { } }
-        }, opTimeoutMs, opName, ct);
+        }, opTimeoutMs, opName, ct, lastProgressTick);
 
     /// <summary>
     /// Serialize a WPD operation through the gate with a watchdog. If the
     /// operation hangs (cable pulled mid-COM-call), the stuck gate is abandoned
     /// and replaced so the rest of the app self-heals; the caller gets a
     /// TimeoutException with recovery guidance.
+    ///
+    /// With <paramref name="lastProgressTick"/> supplied, the watchdog is
+    /// PROGRESS-AWARE: <paramref name="opTimeoutMs"/> becomes a stall window —
+    /// the op may run indefinitely while progress ticks keep advancing, and is
+    /// only abandoned after a full window with no progress.
     /// </summary>
-    private static Task<T> RunGated<T>(Func<T> action, int opTimeoutMs, string opName, CancellationToken ct)
+    private static Task<T> RunGated<T>(Func<T> action, int opTimeoutMs, string opName, CancellationToken ct,
+        Func<long>? lastProgressTick = null)
         => Task.Run(() =>
         {
             var gate = _gate;
@@ -223,7 +260,26 @@ public sealed class MtpDeviceService : IDeviceService
                 // The COM call itself cannot be cancelled — run it on its own
                 // task and watchdog it from here.
                 var work = Task.Run(action, CancellationToken.None);
-                if (!work.Wait(opTimeoutMs))
+
+                bool finished;
+                if (lastProgressTick is null)
+                {
+                    finished = work.Wait(opTimeoutMs);
+                }
+                else
+                {
+                    // Poll in slices; only a stall (no progress for the whole
+                    // window) counts as a hang. Cancellation abandons too —
+                    // the COM call can't be interrupted any other way.
+                    while (!(finished = work.Wait(2000)))
+                    {
+                        if (ct.IsCancellationRequested ||
+                            Environment.TickCount64 - lastProgressTick() > opTimeoutMs)
+                            break;
+                    }
+                }
+
+                if (!finished)
                 {
                     releaseNormally = false; // stuck holder keeps the old gate forever
                     lock (_gateSwap)
@@ -231,8 +287,9 @@ public sealed class MtpDeviceService : IDeviceService
                         if (ReferenceEquals(_gate, gate))
                             _gate = new SemaphoreSlim(1, 1);
                     }
+                    ct.ThrowIfCancellationRequested();
                     Services.RunLogger.Warn("MtpDevice",
-                        $"'{opName}' hung for {opTimeoutMs / 1000}s — abandoned the stuck device connection and reset. " +
+                        $"'{opName}' made no progress for {opTimeoutMs / 1000}s — abandoned the stuck device connection and reset. " +
                         "Unplug/replug the phone if it stays unresponsive.");
                     throw new TimeoutException(
                         $"The phone stopped responding during {opName}. Unplug and replug it, then try again.");

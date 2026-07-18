@@ -117,6 +117,18 @@ public sealed partial class PhoneViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private async Task RepairConnectionAsync()
+    {
+        StatusText = "Repairing the Apple connection stack — accept the Windows permission prompt…";
+        var ok = await _diagnostics.TryRepairAppleStackElevatedAsync();
+        StatusText = ok
+            ? "Repair complete (services restarted, device re-registered). Rescanning…"
+            : "Repair did not complete (prompt declined or service failed) — rescanning anyway…";
+        await Task.Delay(2000);
+        await LoadAsync();
+    }
+
+    [RelayCommand]
     private async Task StartAppleServiceAsync()
     {
         StatusText = "Starting the Apple Mobile Device Service (accept the Windows permission prompt)…";
@@ -163,7 +175,7 @@ public sealed partial class PhoneViewModel : ObservableObject
         // Windows-side health checks — run on every connect/refresh.
         var diag = _diagnostics.Run();
         DriverMissing  = !diag.DriverPresent;
-        ServiceStopped = diag.ServiceInstalled && !diag.ServiceRunning;
+        ServiceStopped = (diag.ServiceInstalled && !diag.ServiceRunning) || !diag.WpdEnumRunning;
 
         if (Device is null) { StatusText = "Connect an iPhone via USB, unlock it, and tap “Trust This Computer”."; return; }
 
