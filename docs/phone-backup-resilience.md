@@ -86,3 +86,10 @@ The iCloud-optimized handling and resilience posture match (and extend) what
 iMazing and CopyTrans publicly document for the same problem space — see
 [phone-feature-validation.md](phone-feature-validation.md) for the comparison
 table, the DevOps engine grade, and sources.
+
+## Free-space preflight (added 2026-07-18)
+Before writing any file, `BackupAsync` estimates the bytes still to copy (items
+not already in this destination's journal) and refuses if the destination drive
+can't hold them (+3% headroom): *"Not enough free space: this backup needs about
+X GB but the destination has Y GB free."* Prevents filling a disk mid-run.
+Applies to both the UI and the `POST /api/v1/phone/backup` path.

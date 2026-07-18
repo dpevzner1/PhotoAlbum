@@ -95,6 +95,23 @@ public sealed class PhoneBackupService : IPhoneBackupService
 
         var journal = BackupJournal.LoadOrCreate(destination, device.StableKey, items.Count);
         var index   = await GetBackupIndexAsync(device, ct);
+
+        // ── Free-space preflight ──────────────────────────────────────────────
+        // Estimate bytes still to copy (items not already in this destination's
+        // journal) and refuse BEFORE writing anything if the drive can't hold
+        // them — avoids filling the disk mid-run. 3% headroom for filesystem
+        // overhead + the journal itself.
+        long needed = items.Where(it => !journal.IsCopied(it.ItemId)).Sum(it => it.SizeBytes);
+        var (freeOk, free) = TryGetFreeSpace(destination);
+        if (freeOk && needed > 0 && free < needed * 1.03)
+        {
+            var msg = $"Not enough free space: this backup needs about {Gb(needed)} but the destination has {Gb(free)} free. " +
+                      "Choose a drive with more room (Browse…) or free up space, then try again.";
+            RunLogger.Warn("PhoneBackup", msg);
+            throw new InvalidOperationException(msg);
+        }
+        RunLogger.Info("PhoneBackup",
+            $"Preflight OK — need ~{Gb(needed)}, free {(freeOk ? Gb(free) : "unknown")} at {destination}");
         var errors  = new List<string>();
         int copied = 0, skipped = 0, failed = 0;
         long bytes = 0;
@@ -303,6 +320,19 @@ public sealed class PhoneBackupService : IPhoneBackupService
     {
         try { if (File.Exists(path)) File.Delete(path); } catch { }
     }
+
+    private static (bool Ok, long Free) TryGetFreeSpace(string path)
+    {
+        try
+        {
+            var root = Path.GetPathRoot(Path.GetFullPath(path));
+            if (string.IsNullOrEmpty(root)) return (false, 0);
+            return (true, new DriveInfo(root).AvailableFreeSpace);
+        }
+        catch { return (false, 0); }
+    }
+
+    private static string Gb(long bytes) => $"{bytes / 1_073_741_824.0:F1} GB";
 
     private static string Sanitize(string name)
     {

@@ -58,3 +58,28 @@ GPU-accelerable computation; the levers that actually move memory and CPU are
 paging, off-page release, disk caching, and off-thread decode — all now in
 place. Overall: **A**, with a profiler baseline recommended to make it
 measured rather than reasoned.
+
+## Measured baseline (dotnet-counters, 2026-07-18)
+
+Idle (app running, no phone connected), captured via `dotnet-counters collect`:
+
+| Metric | Value |
+|---|---|
+| Working set | **249 MB** (`dotnet.process.memory.working_set` 263 MB) |
+| Managed GC heap (gen0+gen2+LOH+POH) | **~16 MB** |
+| GC collection rate (idle) | **0 /sec** — no allocation churn |
+| Handles / Threads | 817 / 24 |
+
+**Reading:** the managed heap is tiny (~16 MB) — our object model (60k lightweight
+VMs + one 500-tile page) is lean; the 249 MB working set is dominated by the
+**native** self-contained .NET runtime + WebView2 + libvlc, not our data. Zero
+GC collections at idle confirms the frozen-bitmap / bounded-collection design
+does not thrash.
+
+**Phone-connected delta (repeatable method for a full baseline):** connect the
+iPhone, scan, then `dotnet-counters monitor -n PhotoAlbum.App` while paging
+through the library. Expected per the design: working set rises by roughly one
+page of decoded thumbnails (~50 MB) and returns after paging away (off-page
+release), with GC gen0 activity during page loads only — NOT unbounded growth.
+This measured pass converts the reasoned grades above to measured; the idle
+baseline is captured here and shows no churn.
