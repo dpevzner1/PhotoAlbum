@@ -24,6 +24,7 @@ public static class LocalApiHost
         IHiddenContentManager hidden = null,
         IDeviceService deviceService = null,
         IPhoneBackupService phoneBackup = null,
+        IPhoneInventoryStore inventoryStore = null,
         CancellationToken ct = default)
     {
         var builder = WebApplication.CreateBuilder();
@@ -47,6 +48,8 @@ public static class LocalApiHost
             builder.Services.AddSingleton(deviceService);
         if (phoneBackup is not null)
             builder.Services.AddSingleton(phoneBackup);
+        if (inventoryStore is not null)
+            builder.Services.AddSingleton(inventoryStore);
 
         // Bind only on loopback — never expose on LAN
         builder.Services.Configure<Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions>(k =>
@@ -678,9 +681,16 @@ public static class LocalApiHost
             .WithName("GetPhoneStatus")
             .WithSummary("Connected phone(s) over USB/MTP. Requires the device to be unlocked and trusted.");
 
-        api.MapGet("/phone/media", async (IDeviceService devices, string deviceId) =>
+        api.MapGet("/phone/media", async (IDeviceService devices, string deviceId,
+                IPhoneInventoryStore? inventory) =>
             {
                 var items = await devices.GetMediaItemsAsync(deviceId);
+                // Persist so the UI can reuse this scan instantly (no re-walk).
+                if (inventory is not null && items.Count > 0)
+                {
+                    var dev = (await devices.GetConnectedDevicesAsync()).FirstOrDefault(d => d.DeviceId == deviceId);
+                    if (dev is not null) await inventory.SaveInventoryAsync(dev.StableKey, items);
+                }
                 return Results.Ok(new
                 {
                     total = items.Count,

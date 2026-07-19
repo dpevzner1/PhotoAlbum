@@ -267,6 +267,18 @@ public sealed partial class PhoneViewModel : ObservableObject
                 VideoCount = cached.Count(i => i.IsVideo);
                 ApplyTypeFilter(); // renders page 1 from cache (thumbnails from disk cache)
                 OnPropertyChanged(nameof(TotalSizeText));
+
+                // If the cache is FRESH (a scan just ran — UI or API), reuse it and
+                // skip the ~35-minute re-walk. Refresh again later to force a rescan.
+                var age = _inventory.GetInventoryTimeUtc(Device.StableKey);
+                if (age is { } t && (DateTime.UtcNow - t) < TimeSpan.FromMinutes(15))
+                {
+                    IsLoading = false;
+                    StatusText = $"{TotalCount:N0} items · {TotalSizeText} library size (from a scan {(int)(DateTime.UtcNow - t).TotalMinutes} min ago). " +
+                                 "Press Refresh to re-scan the device.";
+                    RunLogger.Info("PhoneView", "Using fresh cached inventory — skipped device re-walk");
+                    return;
+                }
             }
 
             // Last scan's count = estimate for a determinate progress bar.

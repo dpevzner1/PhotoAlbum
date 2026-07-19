@@ -162,6 +162,7 @@ public partial class App : Application
                 services.AddSingleton<AppleDriverService>();
                 services.AddSingleton<PhoneDiagnosticsService>();
                 services.AddSingleton<PhoneInventoryService>();
+                services.AddSingleton<IPhoneInventoryStore>(sp => sp.GetRequiredService<PhoneInventoryService>());
 
                 // ViewModels
                 services.AddTransient<ViewModels.LibraryViewModel>();
@@ -276,7 +277,8 @@ public partial class App : Application
                 sp.GetRequiredService<IEventRepository>(),
                 hidden,
                 sp.GetRequiredService<IDeviceService>(),
-                sp.GetRequiredService<IPhoneBackupService>());
+                sp.GetRequiredService<IPhoneBackupService>(),
+                sp.GetRequiredService<IPhoneInventoryStore>());
             RunLogger.Info("App", "Local REST API started on http://127.0.0.1:5150");
         }
         catch (Exception ex)

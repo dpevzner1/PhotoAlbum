@@ -250,6 +250,13 @@ public sealed class PhoneBackupService : IPhoneBackupService
         RunLogger.Info("PhoneBackup",
             $"Backup finished — copied {copied}, skipped {skipped} (already backed up), failed {failed}, " +
             $"{bytes / 1_048_576.0:F1} MB. Journal: {journal.CopiedCount}/{items.Count} accounted for.");
+
+        // Write the human-readable validation report + CSV manifest to the
+        // destination so success can be validated at a glance (crash-safe: the
+        // journal it is generated from is written after every file).
+        try { WriteReport(destination, device, items, journal, copied, skipped, failed, bytes, errors); }
+        catch (Exception ex) { RunLogger.Warn("PhoneBackup", "Report generation failed (non-fatal)", ex); }
+
         return new PhoneBackupResult(copied, skipped, failed, bytes, destination, errors);
 
         void Report(int done, string? file = null) =>
@@ -334,6 +341,103 @@ public sealed class PhoneBackupService : IPhoneBackupService
 
     private static string Gb(long bytes) => $"{bytes / 1_073_741_824.0:F1} GB";
 
+    /// <summary>Map a raw exception message to a plain-English cause for the report/log.</summary>
+    public static string ExplainError(string? msg)
+    {
+        if (string.IsNullOrEmpty(msg)) return "unknown error";
+        if (msg.Contains("0x8007001E") || msg.Contains("cannot read from the specified device"))
+            return "device returned no data (0-byte read) — most likely an iCloud-optimized original not stored locally on the phone (turn on Settings ▸ Photos ▸ Download and Keep Originals, then re-run)";
+        if (msg.Contains("Size mismatch"))
+            return "download truncated — fewer bytes than the device reported; not saved, to avoid a corrupt file";
+        if (msg.Contains("no longer connected") || msg.Contains("disconnected"))
+            return "device disconnected mid-transfer";
+        if (msg.Contains("UnauthorizedAccess") || msg.Contains("denied"))
+            return "destination not writable (permissions)";
+        if (msg.Contains("space"))
+            return "destination out of free space";
+        return msg.Length > 160 ? msg[..160] : msg;
+    }
+
+    private static void WriteReport(
+        string destination, PhoneDevice device, IReadOnlyList<PhoneMediaItem> items,
+        BackupJournal journal, int copied, int skipped, int failed, long bytes, IReadOnlyList<string> errors)
+    {
+        var byName = items.ToDictionary(i => i.ItemId, i => i, StringComparer.OrdinalIgnoreCase);
+        var typeCount = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var typeBytes = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        var failedRows = new List<(PhoneMediaItem Item, string Reason)>();
+        var renamedRows = new List<(string Original, string Saved)>();
+
+        foreach (var it in items)
+        {
+            if (!journal.TryGet(it.ItemId, out var st, out var finalName, out var reason)) continue;
+            var ext = (Path.GetExtension(it.Name).TrimStart('.').ToUpperInvariant()) is { Length: > 0 } e ? e : "?";
+            if (st == "copied" && reason != "(duplicate — skipped)")
+            {
+                typeCount[ext] = typeCount.GetValueOrDefault(ext) + 1;
+                typeBytes[ext] = typeBytes.GetValueOrDefault(ext) + it.SizeBytes;
+                if (finalName is not null && !string.Equals(finalName, it.Name, StringComparison.OrdinalIgnoreCase))
+                    renamedRows.Add((it.Name, finalName));
+            }
+            else if (st == "failed")
+                failedRows.Add((it, ExplainError(reason)));
+        }
+
+        string Human(long b) => b >= 1L << 30 ? $"{b / 1_073_741_824.0:F1} GB"
+                              : b >= 1L << 20 ? $"{b / 1_048_576.0:F1} MB" : $"{b / 1024.0:F0} KB";
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("PHOTOALBUM — BACKUP VALIDATION REPORT");
+        sb.AppendLine(new string('=', 60));
+        sb.AppendLine($"Device      : {device.FriendlyName}  (key {device.StableKey})");
+        sb.AppendLine($"Destination : {destination}");
+        sb.AppendLine($"Generated   : {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine($"Declared on device: {items.Count:N0} items");
+        sb.AppendLine();
+        sb.AppendLine("SUMMARY");
+        sb.AppendLine($"  Copied (new)  : {copied:N0}   {Gb(bytes)}");
+        sb.AppendLine($"  Skipped (dup) : {skipped:N0}   (identical content already backed up)");
+        sb.AppendLine($"  Failed        : {failed:N0}");
+        sb.AppendLine($"  Renamed kept  : {renamedRows.Count:N0}   (same name, different content — saved with a suffix, never overwritten)");
+        sb.AppendLine();
+        sb.AppendLine("COPIED — by file type");
+        foreach (var kv in typeCount.OrderByDescending(k => typeBytes.GetValueOrDefault(k.Key)))
+            sb.AppendLine($"  {kv.Key,-6} {kv.Value,7:N0}   {Gb(typeBytes.GetValueOrDefault(kv.Key))}");
+        sb.AppendLine();
+        sb.AppendLine($"FAILURES ({failedRows.Count}) — granular");
+        if (failedRows.Count == 0) sb.AppendLine("  (none)");
+        foreach (var (it, reason) in failedRows.Take(1000))
+            sb.AppendLine($"  {it.Name,-24} | {it.Folder,-26} | expected {Human(it.SizeBytes)} | {reason}");
+        if (renamedRows.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"RENAMED — kept both ({renamedRows.Count})");
+            foreach (var (o, s) in renamedRows.Take(1000)) sb.AppendLine($"  {o}  →  {s}");
+        }
+        sb.AppendLine();
+        sb.AppendLine("NOTES");
+        sb.AppendLine("  * Duplicate = byte-identical content (BLAKE3). Existing files are never overwritten.");
+        sb.AppendLine("  * Failed items are NOT marked copied — re-running Back Up All re-attempts only them.");
+        sb.AppendLine("  * Every copied file's BLAKE3 hash is in .photoalbum-backup-journal.json.");
+        sb.AppendLine("  * Embedded EXIF/QuickTime metadata (capture date, GPS, camera) is preserved byte-for-byte.");
+        File.WriteAllText(Path.Combine(destination, "BACKUP-REPORT.txt"), sb.ToString());
+
+        // CSV manifest — one row per accounted item.
+        var csv = new System.Text.StringBuilder();
+        csv.AppendLine("FileName,DeviceFolder,SizeBytes,Type,Status,BLAKE3,CaptureDate");
+        foreach (var it in items)
+        {
+            if (!journal.TryGet(it.ItemId, out var st, out var finalName, out var reason)) continue;
+            var status = st == "failed" ? "failed"
+                       : reason == "(duplicate — skipped)" ? "skipped-duplicate" : "copied";
+            var ext = Path.GetExtension(it.Name).TrimStart('.').ToUpperInvariant();
+            static string Q(string? s) => "\"" + (s ?? "").Replace("\"", "\"\"") + "\"";
+            csv.AppendLine($"{Q(finalName ?? it.Name)},{Q(it.Folder)},{it.SizeBytes},{ext},{status},{Q(journal.HashOf(it.ItemId))},{it.DateTaken:o}");
+        }
+        File.WriteAllText(Path.Combine(destination, "backup-manifest.csv"), csv.ToString());
+        RunLogger.Info("PhoneBackup", $"Wrote BACKUP-REPORT.txt + backup-manifest.csv ({items.Count:N0} rows) to {destination}");
+    }
+
     private static string Sanitize(string name)
     {
         foreach (var c in Path.GetInvalidFileNameChars()) name = name.Replace(c, '_');
@@ -363,6 +467,21 @@ public sealed class PhoneBackupService : IPhoneBackupService
 
         public int CopiedCount => Items.Count(kv => kv.Value.S == "copied");
         public bool IsCopied(string itemId) => Items.TryGetValue(itemId, out var it) && it.S == "copied";
+
+        /// <summary>status = copied|failed; finalName set for copied; reason/note carried in N.</summary>
+        public bool TryGet(string itemId, out string status, out string? finalName, out string? reason)
+        {
+            if (Items.TryGetValue(itemId, out var it))
+            {
+                status = it.S;
+                finalName = it.S == "copied" ? it.N : null;
+                reason = it.N;
+                return true;
+            }
+            status = ""; finalName = null; reason = null; return false;
+        }
+
+        public string HashOf(string itemId) => Items.TryGetValue(itemId, out var it) ? it.H ?? "" : "";
 
         public void MarkCopied(string itemId, string hash, string finalName)
         {

@@ -1,4 +1,5 @@
 using PhotoAlbum.Core.Domain;
+using PhotoAlbum.Core.Interfaces;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -15,8 +16,18 @@ namespace PhotoAlbum.App.Services;
 ///     over MTP.
 /// All operations are best-effort and never throw into the UI.
 /// </summary>
-public sealed class PhoneInventoryService
+public sealed class PhoneInventoryService : IPhoneInventoryStore
 {
+    public DateTime? GetInventoryTimeUtc(string deviceKey)
+    {
+        try
+        {
+            var p = InventoryPath(deviceKey);
+            return File.Exists(p) ? File.GetLastWriteTimeUtc(p) : null;
+        }
+        catch { return null; }
+    }
+
     private readonly string _root = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "PhotoAlbum", "phone-cache");
